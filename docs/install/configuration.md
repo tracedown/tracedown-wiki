@@ -133,7 +133,8 @@ are the ones worth brute-forcing.
 
 `RATE_LIMIT_TRUSTED_PROXIES` is how the gateway decides which
 `X-Forwarded-For` hop is the real client. The default of `1` matches the
-bundled single-nginx stack; set it to your actual proxy depth, because a wrong
+single host web server the [deploy stack](deploy.md) expects in front of the
+gateway; set it to your actual proxy depth, because a wrong
 value makes rate limiting either spoofable or keyed to your proxy's address.
 
 !!! note "Sessions are not JWTs"
@@ -533,7 +534,9 @@ value the template ships is a development default.
 | `DB_PASSWORD` | Database password | `tracedown` | No |
 | `PLATFORM_AES_KEY` | Shared 64-hex-char encryption key | Dev placeholder | No — but change it |
 | `JWT_SECRET` | Session signing secret | Dev placeholder | No — but change it |
-| `NGINX_PORT` | Host port for the nginx entry point | `20714` | No |
+| `GATEWAY_PORT` | Host (127.0.0.1) port for the API gateway | `20714` | No |
+| `REALTIME_PORT` | Host (127.0.0.1) port for the WebSocket | `20870` | No |
+| `METRICS_PORT` | Host (127.0.0.1) port for the metrics endpoint | `20850` | No |
 | `REDIS_A_URL` | Operational Redis URL | Container-internal | No |
 | `REDIS_B_URL` | Cache Redis URL | Container-internal | No |
 | `REDIS_C_URL` | Hierarchy cache Redis URL | Container-internal | No |

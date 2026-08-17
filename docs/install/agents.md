@@ -6,6 +6,10 @@ tells you about it. The agent is the only component that touches the endpoint
 you are monitoring, which is why it is the only component you deploy more than
 once and in more than one place.
 
+Agents belong to the per-service deployment. The [monolith](monolith.md)
+executes probes in-process with an embedded executor instead — it uses no
+agents, and nothing on this page applies to it.
+
 The agent lives in `core/tracedown-probe-agent`. It is a Python FastAPI service
 (Python 3.10+, shipped as `python:3.12-slim`) that wraps the Lace executor. Its
 dependencies are deliberately small: `fastapi`, `uvicorn[standard]`, `httpx`,
@@ -210,8 +214,12 @@ client authentication only, so one agent's certificate can never be replayed as
 a client to call another agent's `/probe`. The scheduler goes further on its
 side of the handshake — beyond validating the chain it requires the agent
 certificate's SAN to match the expected agent slug and checks it against
-revocation, failing closed. Hostname verification is off on both ends because
-agents are dialed at dynamic addresses; the slug pinning is what replaces it.
+revocation, failing closed. The certificate's SAN carries the slug rather than
+a network address, which has a practical consequence: the scheduler must dial
+the agent at a hostname equal to its slug, or TLS hostname verification fails.
+This is why the bootstrap script runs the container with `--hostname` and
+`--network-alias` set to the slug, and why an agent reached through DNS needs
+a record matching its slug.
 
 The agent enters this mode on its first boot: the image runs `python src/main.py`,
 which registers and obtains its certificate *before* binding the socket, then

@@ -61,6 +61,8 @@ nav:
     - install/index.md
     - Requirements: install/requirements.md
     - Quickstart (Docker): install/quickstart.md
+    - Production Deploy: install/deploy.md
+    - Monolith: install/monolith.md
     - Architecture: install/architecture.md
     - Configuration:
       - install/configuration.md

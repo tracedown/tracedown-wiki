@@ -8,7 +8,7 @@
 | Memory | 4 GB | 8 GB |
 | Disk | 20 GB | 50 GB+ — grows with retention and saved bodies |
 
-Nine JVM services, Postgres, Redis, and nginx run side by side. On a small host,
+Nine JVM services, Postgres, and Redis run side by side. On a small host,
 apply the resource overlay described in [Scaling](../admin/scaling.md) — it caps
 each JVM's heap and connection pool so the stack fits in roughly 8 vCPU / 7 GB.
 
@@ -58,7 +58,9 @@ them.)
 
 | Port | Who | Purpose |
 |---|---|---|
-| `20714` | nginx | The only port you need to expose. Fronts the API, metrics, and WebSocket. |
+| `20714` | api-gateway | REST API and health. Published on 127.0.0.1; your web server proxies to it. |
+| `20870` | realtime-service | WebSocket. Published on 127.0.0.1; proxied by your web server. |
+| `20850` | metrics-service | Prometheus scrape endpoint. Published on 127.0.0.1. |
 | `5555` | Postgres | Mapped to the host by the dev stack. **Do not expose publicly.** |
 | `8443` | Probe agent | The scheduler connects here over mutual TLS. |
 

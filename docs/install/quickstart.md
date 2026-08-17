@@ -2,8 +2,10 @@
 
 This page takes you from an empty directory to a running Tracedown with one
 probe agent enrolled. It uses the development Compose stack shipped in
-`core/tracedown-core-backend/docker/`, which brings up Postgres, Redis, all nine
-JVM services, and an nginx entry point in a single command.
+`core/tracedown-core-backend/docker/`, which brings up Postgres, Redis, and all
+nine JVM services in a single command. (For production, use the
+[release-artifact deploy](deploy.md) or the [monolith](monolith.md) instead —
+this stack builds everything from source.)
 
 Budget a few minutes of wall clock — most of it is the first Gradle build.
 
@@ -86,23 +88,26 @@ rather than a sleep:
    clear.
 5. **the scheduler** starts once the gateway is healthy — it is the one service
    that waits for it.
-6. **`tracedown-nginx`** publishes the stack on the host port.
 
 If the run stalls, it is almost always at step 2 or step 4 —
 [Troubleshooting](../admin/troubleshooting.md) covers the usual causes.
 
 ### What gets published
 
-Only two ports reach the host. `${NGINX_PORT}:80` maps nginx, and `5555:5432`
-maps Postgres for convenience during development. The Postgres mapping is a
-development affordance, not a feature; remove it on any host you do not trust.
+There is no reverse proxy in the stack. Three services publish directly, each
+bound to **127.0.0.1 only**, plus a Postgres mapping for development
+convenience (`5555:5432` — an affordance, not a feature; remove it on any host
+you do not trust):
 
-| Path | Goes to |
-|---|---|
-| `/api/` | api-gateway (20714) |
-| `/metrics/` | metrics-service (20850) |
-| `/ws` | realtime-service (20870), upgraded to WebSocket |
-| `/ping` | api-gateway health endpoint |
+| Port | Service | Serves |
+|---|---|---|
+| `${GATEWAY_PORT}` (20714) | api-gateway | REST API (`/api/v1`), health (`/ping`) |
+| `${REALTIME_PORT}` (20870) | realtime-service | WebSocket (`/ws`) |
+| `${METRICS_PORT}` (20850) | metrics-service | Prometheus scrape endpoint |
+
+Exposing the stack beyond localhost is a host web server's job — the
+[Production Deploy](deploy.md) page and the shipped
+`docker/deploy/nginx.conf` / `apache.conf` cover that.
 
 ### What the `.env` gives you
 
@@ -114,7 +119,7 @@ The Compose file reads `docker/.env`, which you created above from the shipped
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `tracedown` | Postgres credentials. |
 | `PLATFORM_AES_KEY` | `0123456789abcdef…` (64 hex chars) | Encrypts variables and TOTP secrets. |
 | `JWT_SECRET` | `dev-jwt-secret-change-me-for-prod` | Signs session tokens. |
-| `NGINX_PORT` | `20714` | Host entry point. |
+| `GATEWAY_PORT` / `REALTIME_PORT` / `METRICS_PORT` | `20714` / `20870` / `20850` | The three published (localhost-only) ports. |
 | `REDIS_A_URL` / `REDIS_B_URL` / `REDIS_C_URL` | all `redis://tracedown-redis-a:6379` | One instance, three roles. |
 
 Two of these deserve explanation. `PLATFORM_AES_KEY` is the key your encrypted
@@ -128,7 +133,7 @@ serves all three until your volume justifies splitting them.
 [Scaling](../admin/scaling.md) covers when to separate them.
 
 The port number is `20714` because it spells "t7n". There is no other
-significance to it, and `NGINX_PORT` moves it.
+significance to it, and `GATEWAY_PORT` moves it.
 
 ??? note "Running on a small host"
     An opt-in overlay caps every container to approximate a small production
@@ -211,15 +216,13 @@ own `docker/` directory. It does not come up with the backend stack.
     npm run dev
     ```
 
-    Vite serves on port 5173. `.env.development` points the app straight at the
-    backend's nginx: `VITE_API_URL=http://localhost:20714/api/v1`,
-    `VITE_WS_URL=ws://localhost:20714/ws`, and `VITE_WS_MAX_RETRIES=5`
-    (WebSocket reconnect attempts before falling back to polling; `0` disables
-    the WebSocket entirely). The backend's nginx allowlists localhost origins
-    for CORS, which is what makes this cross-origin setup work in development.
-    Serving the dashboard cross-origin from any other host means adding that
-    origin to the allowlist in `docker/nginx.conf`; the Docker setup below
-    avoids the question entirely by being same-origin.
+    Vite serves on port 5173. The app calls its production defaults —
+    same-origin `/api/v1` and `/ws` — and the dev server's proxy forwards them
+    to the backend's published localhost ports (`/api` to the gateway on
+    20714, `/ws` to realtime on 20870), so there is no CORS involved and
+    nothing to configure. `VITE_WS_MAX_RETRIES` (default 5) sets WebSocket
+    reconnect attempts before falling back to polling; `0` disables the
+    WebSocket entirely.
 
 === "Docker (nginx)"
 
@@ -236,12 +239,14 @@ own `docker/` directory. It does not come up with the backend stack.
     to the gateway and `/ws` to realtime-service itself, so the browser only
     ever talks to one origin and there is no CORS involved.
 
-Vite inlines `VITE_*` values into the bundle at build time, so they are baked
-into the image rather than read at container start. Production builds default to
-the same-origin paths `/api/v1` and `/ws` for exactly that reason: a relative
-path needs no rebuild when the hostname changes. The Docker build accepts
-`VITE_API_URL`, `VITE_WS_URL`, and `VITE_WS_MAX_RETRIES` as build args, and
-changing any of them means rebuilding the image.
+The endpoints are configurable at **container start**, not just build time: the
+image regenerates the SPA's `/config.js` from the `API_URL`, `WS_URL`, and
+`WS_MAX_RETRIES` environment variables on every start, so one built image can
+point at any backend without rebuilding. Unset, the bundle's same-origin
+defaults (`/api/v1`, `/ws`) apply — which is the right answer here, since the
+frontend's nginx proxies both paths itself. (`VITE_*` build args still exist
+for baking different defaults into the bundle, but you should rarely need
+them.)
 
 !!! note "`APP_URL` is separate, and easy to forget"
     The backend's `APP_URL` defaults to `http://localhost:5173` and is the base

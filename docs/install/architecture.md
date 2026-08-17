@@ -1,7 +1,8 @@
 # Architecture
 
 Tracedown is eight long-running JVM services, a one-shot schema migrator, a
-Python probe agent, PostgreSQL, Redis, and an nginx entry point. This page
+Python probe agent, PostgreSQL, and Redis, fronted by a web server you run on
+the host. This page
 explains what each part does, how they communicate, and why the boundaries fall
 where they do — which is mostly a story about never letting two services block
 on each other.
@@ -10,10 +11,11 @@ on each other.
 
 ```
                      ┌──────────────┐
-   browser ─────────▶│    nginx     │  host ${NGINX_PORT} (20714)
+   browser ─────────▶│ host proxy   │  your nginx/apache (see deploy.md)
                      └──────┬───────┘
-                            │ /api/ → gateway   /ws → realtime
-                            │ /metrics/ → metrics   /ping → gateway
+                            │ /api/ → gateway (127.0.0.1:20714)
+                            │ /ws → realtime (127.0.0.1:20870)
+                            │ /metrics/ → metrics (127.0.0.1:20850)
         ┌───────────────────┼────────────────────┬─────────────┐
         ▼                   ▼                    ▼             ▼
   ┌───────────┐      ┌────────────┐      ┌────────────┐  ┌──────────┐
@@ -67,7 +69,6 @@ dependency set. Nothing here calls anything else here over HTTP.
 | metrics-service | Prometheus scrape, Grafana integration | 20850 | Postgres, Redis A, Redis B |
 | aggregate-worker | Aggregation, retention, purge, cleanup | 20860 | Postgres, Redis A, Redis B, S3 (optional) |
 | realtime-service | WebSocket fan-out | 20870 | Postgres, Redis A |
-| nginx | Single entry point | `${NGINX_PORT}` | gateway, metrics, realtime |
 | probe agent | Executes Lace scripts | 8443 | scheduler (inbound) |
 
 A few of these rows are worth unpacking.
@@ -96,13 +97,12 @@ consume a connection from a pool that probe ingestion also needs.
 mandatory HOCON substitutions with no defaults, so the process refuses to start
 without them rather than silently falling back to a localhost that isn't there.
 
-**nginx** terminates one host port and routes by path: `/api/` to the gateway,
-`/metrics/` to metrics-service, `/ws` to realtime-service with the WebSocket
-upgrade and a 24-hour read timeout, and `/ping` to the gateway's health
-endpoint. The WebSocket upstream is resolved per-request through Docker's
-embedded DNS, so a restarting realtime-service does not take nginx down with
-it; the other routes use upstreams resolved at config load, and Compose's
-dependency ordering is what keeps them valid at startup.
+**The stack ships no reverse proxy of its own.** The gateway, metrics, and
+realtime services publish on 127.0.0.1, and a web server on the host routes by
+path: `/api/` and `/ping` to the gateway, `/metrics/` to metrics-service, and
+`/ws` to realtime-service with the WebSocket upgrade and a 24-hour read
+timeout. Ready-made `nginx.conf` and `apache.conf` files ship with the
+[Production Deploy](deploy.md) stack; TLS termination happens there too.
 
 `tracedown-core-common` is a shared library — models, config, Redis and storage
 helpers — not a deployable service. It never appears in a process list.
