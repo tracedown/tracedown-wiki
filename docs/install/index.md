@@ -1,5 +1,18 @@
 # Installation
 
+The fastest route is the interactive installer — it can stand up the
+[monolith](monolith.md), the full [per-service stack](deploy.md), or connect a
+probe agent to an existing stack:
+
+```bash
+curl -fsSL https://tracedown.dev/install.sh | bash
+```
+
+It only needs Docker (with the Compose plugin), asks before touching anything,
+and every prompt can be pre-answered with a `TD_*` variable for unattended
+installs — the [script](https://github.com/tracedown/tracedown-install) is
+short and worth reading before piping, as any script should be.
+
 Tracedown ships in two forms, and there are three ways to run it:
 
 | Path | What it is | Use it when |
