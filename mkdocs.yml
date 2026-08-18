@@ -8,6 +8,8 @@ repo_name: tracedown/tracedown-core-backend
 theme:
   name: material
   custom_dir: overrides
+  logo: assets/logo.svg
+  favicon: assets/favicon-32.png
   icon:
     repo: fontawesome/brands/github
   palette:
@@ -98,3 +100,4 @@ nav:
       - Troubleshooting: admin/troubleshooting.md
   - Project:
     - License: project/license.md
+    - Name & Logo: project/brand.md

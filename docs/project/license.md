@@ -9,6 +9,10 @@ The authoritative text is the `LICENSE` file distributed with the source.
 Nothing on this page overrides it — where this summary and the license file
 disagree, the license file wins.
 
+One deliberate exception: the Tracedown **name and logo** are trademarks of
+the project and are not covered by the Apache license — see
+[Name & Logo](brand.md).
+
 ## The probe language
 
 [Lace](https://lacelang.dev) — the language your probe scripts are written in,

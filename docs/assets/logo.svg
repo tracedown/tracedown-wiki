@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 512 512"
+   width="512"
+   height="512"
+   role="img"
+   aria-label="Tracedown logo"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <title id="title1">Tracedown</title>
+  <desc id="desc1">The Tracedown logo — an eye with a sparkline pupil. Self-hosted API monitoring: https://tracedown.dev — source: https://github.com/tracedown</desc>
+  <metadata id="metadata1">
+    <rdf:RDF>
+      <cc:Work rdf:about="https://tracedown.dev">
+        <dc:title>Tracedown</dc:title>
+        <dc:creator>Tracedown contributors</dc:creator>
+        <dc:description>Logo of Tracedown, the self-hosted API monitoring platform.</dc:description>
+        <dc:source>https://github.com/tracedown</dc:source>
+        <dc:rights>The Tracedown name and logo are trademarks of the Tracedown project. Unlike the source code (Apache 2.0), they are NOT freely licensed: unmodified use to refer to Tracedown is welcome; modification, or use as another product's mark, is not. Policy: https://tracedown.dev/project/brand/</dc:rights>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <defs
+     id="defs1">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath21">
+      <path
+         id="path21"
+         style="stroke-width:0.0999999;stroke-linecap:square;paint-order:markers fill stroke;stop-color:#000000"
+         d="m 1691.1994,-792.32001 h 1634.8919 v 92.82806 H 1691.1994 Z" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath5">
+      <path
+         id="path5"
+         style="stroke-width:0.1;stroke-linecap:square;paint-order:markers fill stroke;stop-color:#000000"
+         d="m 438.25066,553.76374 859.87054,0 v 201.39554 l -859.87054,0 z" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath15">
+      <path
+         id="path15"
+         style="stroke-width:0.0999999;stroke-linecap:square;paint-order:markers fill stroke;stop-color:#000000"
+         d="m 1691.1994,-792.32001 h 1634.8919 v 92.82806 H 1691.1994 Z" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath27">
+      <rect
+         style="fill:none;stroke:#000000;stroke-width:0.999999;stroke-linecap:butt;stroke-linejoin:bevel;paint-order:stroke markers fill;stop-color:#000000"
+         id="rect28-6"
+         width="46.160622"
+         height="39.922417"
+         x="86.574379"
+         y="420.06253" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath54">
+      <path
+         id="path54"
+         style="stroke-width:0.0999999;stroke-linecap:square;paint-order:markers fill stroke;stop-color:#000000"
+         d="m 1691.1994,-792.32001 h 1634.8919 v 92.82806 H 1691.1994 Z" />
+    </clipPath>
+  </defs>
+  <circle
+     style="fill:#222729;stroke:none;stroke-width:11.6;stroke-linecap:round;stroke-linejoin:round;fill-opacity:1"
+     id="path1"
+     cx="256"
+     cy="256"
+     r="256" />
+  <!-- Eye: lens shape, blue fill with dark rim -->
+  <path
+     id="eye"
+     d="M3.0148,256 C63.4482,175.4221 155.2777,128 256,128 C356.7223,128 448.5518,175.4221 508.9852,256 C448.5518,336.5779 356.7223,384 256,384 C155.2777,384 63.4482,336.5779 3.0148,256 Z"
+     fill="#66a8e6"
+     stroke="#222729"
+     stroke-width="5"
+     stroke-linejoin="round"
+     stroke-linecap="round"
+     style="fill:#66a8e6;fill-opacity:1" />
+  <!-- Iris: r=144.07903 circle, intersected with the eye outline (no shape change, excess trimmed) -->
+  <path
+     id="iris"
+     d="M171.0056,139.6612 C198.2182,132.0037 226.7337,128 256,128 C285.2663,128 313.7818,132.0037 340.9944,139.6612 A144.07903 144.07903 0 0 1 340.9944,372.3388 C313.7818,379.9963 285.2663,384 256,384 C226.7337,384 198.2182,379.9963 171.0056,372.3388 A144.07903 144.07903 0 0 1 171.0056,139.6612 Z"
+     fill="#222729" />
+  <!-- Sparkline: 16.5px round stroke converted to a filled object; span centred on the iris -->
+  <path
+     id="sparkline"
+     fill="#ff5e5b"
+     fill-rule="nonzero"
+     d="M147.4666,264.25 L213.047,264.25 A8.25 8.25 0 0 0 213.047,247.75 L147.4666,247.75 A8.25 8.25 0 0 0 147.4666,264.25 Z            M218.6463,262.0589 L261.5993,222.3638 A8.25 8.25 0 0 0 250.4007,210.246 L207.4477,249.9411 A8.25 8.25 0 0 0 218.6463,262.0589 Z            M247.783,217.0416 L254.3151,289.8997 A8.25 8.25 0 0 0 270.7491,288.4263 L264.217,215.5682 A8.25 8.25 0 0 0 247.783,217.0416 Z            M268.2556,295.1047 L302.6829,261.9417 A8.25 8.25 0 0 0 291.2359,250.0583 L256.8086,283.2213 A8.25 8.25 0 0 0 268.2556,295.1047 Z            M296.9594,264.25 L364.5334,264.25 A8.25 8.25 0 0 0 364.5334,247.75 L296.9594,247.75 A8.25 8.25 0 0 0 296.9594,264.25 Z" />
+</svg>
