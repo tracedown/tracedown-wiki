@@ -4,11 +4,27 @@
    width="512"
    height="512"
    role="img"
-   aria-label="Eye logo with a sparkline pupil"
+   aria-label="Tracedown logo"
    version="1.1"
    id="svg1"
    xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <title id="title1">Tracedown</title>
+  <desc id="desc1">The Tracedown logo — an eye with a sparkline pupil. Self-hosted API monitoring: https://tracedown.dev — source: https://github.com/tracedown</desc>
+  <metadata id="metadata1">
+    <rdf:RDF>
+      <cc:Work rdf:about="https://tracedown.dev">
+        <dc:title>Tracedown</dc:title>
+        <dc:creator>Tracedown contributors</dc:creator>
+        <dc:description>Logo of Tracedown, the self-hosted API monitoring platform.</dc:description>
+        <dc:source>https://github.com/tracedown</dc:source>
+        <cc:license rdf:resource="https://www.apache.org/licenses/LICENSE-2.0" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
   <defs
      id="defs1">
     <clipPath
@@ -55,8 +71,6 @@
          d="m 1691.1994,-792.32001 h 1634.8919 v 92.82806 H 1691.1994 Z" />
     </clipPath>
   </defs>
-  <title
-     id="title1">Eye logo with sparkline pupil</title>
   <circle
      style="fill:#222729;stroke:none;stroke-width:11.6;stroke-linecap:round;stroke-linejoin:round;fill-opacity:1"
      id="path1"
