@@ -110,7 +110,7 @@ deletes them at retention:
 |---|---|
 | aggregate-worker | `STORAGE_S3_ACCESS_KEY`, `STORAGE_S3_SECRET_KEY` |
 | result-ingestor | `STORAGE_S3_ACCESS_KEY`, `STORAGE_S3_SECRET_KEY` |
-| probe agent | `PROBE_AGENT_R2_ACCESS_KEY_ID`, `PROBE_AGENT_R2_SECRET_ACCESS_KEY` |
+| probe agent | `PROBE_AGENT_S3_ACCESS_KEY_ID`, `PROBE_AGENT_S3_SECRET_ACCESS_KEY` |
 
 ### Agent bootstrap tokens
 
