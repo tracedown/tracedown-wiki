@@ -33,9 +33,14 @@ each JVM's heap and connection pool so the stack fits in roughly 8 vCPU / 7 GB.
 
 ## Source layout
 
-Tracedown builds from a directory tree, not a single repository. The backend's
-Docker build context is the **parent** directory, and its Dockerfile copies the
-sibling `lace/` repositories into the build context:
+Only relevant when building the images from source — the
+[production deploy](deploy.md) runs from published release artifacts and needs
+none of this.
+
+All Lace libraries are pinned Maven Central dependencies (`dev.lacelang:*`),
+so there are no extra repositories to clone or copy. The one convention that
+remains: the backend's Docker build context is the **parent** of the
+repository root, so clone into a fixed tree:
 
 ```
 tracedown/
@@ -43,16 +48,7 @@ tracedown/
     tracedown-core-backend/     # the JVM services + docker/ stack
     tracedown-core-frontend/    # the dashboard
     tracedown-probe-agent/      # the probe agent
-  lace/
-    lacelang-kotlin-validator/  # copied into the Docker build
-    lacelang-kotlin-executor/   # copied into the Docker build
-    kotlin-lacetest/            # copied into the Docker build
 ```
-
-Cloning only `tracedown-core-backend` will fail the Docker image build at the
-COPY step. Clone the siblings alongside it. (The Gradle build itself resolves
-the Lace libraries from Maven Central, so building outside Docker does not need
-them.)
 
 ## Network
 

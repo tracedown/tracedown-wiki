@@ -20,15 +20,12 @@ Budget a few minutes of wall clock — most of it is the first Gradle build.
 Check [Requirements](requirements.md) for host sizing and Docker versions. The
 one thing worth repeating here, because it is the most common first failure:
 
-## Clone the whole tree, not just the backend
+## Clone into the expected tree
 
 The backend's Docker build context is the **parent** of the repository root
-(`context: ../../..` in the Compose file). That is not an accident: the
-Dockerfile copies the sibling `lace/` repositories into the build, so the
-`lace/` tree must exist on disk next to `core/`. Clone only
-`tracedown-core-backend` and the image build fails at the COPY step, before any
-container starts. (The Gradle build itself pulls the Lace libraries from Maven
-Central — only the Docker build needs the siblings on disk.)
+(`context: ../../..` in the Compose file), so the repositories go into a fixed
+layout. All Lace libraries are pinned Maven Central dependencies — nothing else
+to clone.
 
 Concretely:
 
@@ -37,9 +34,6 @@ mkdir tracedown && cd tracedown
 git clone https://github.com/tracedown/tracedown-core-backend  core/tracedown-core-backend
 git clone https://github.com/tracedown/tracedown-core-frontend core/tracedown-core-frontend
 git clone https://github.com/tracedown/tracedown-probe-agent   core/tracedown-probe-agent
-git clone https://github.com/tracedown/lacelang-kotlin-validator lace/lacelang-kotlin-validator
-git clone https://github.com/tracedown/lacelang-kotlin-executor  lace/lacelang-kotlin-executor
-git clone https://github.com/tracedown/kotlin-lacetest           lace/kotlin-lacetest
 ```
 
 ```
@@ -48,10 +42,6 @@ tracedown/
     tracedown-core-backend/     # the services and the docker/ stack
     tracedown-core-frontend/    # the dashboard
     tracedown-probe-agent/      # the probe agent
-  lace/
-    lacelang-kotlin-validator/
-    lacelang-kotlin-executor/
-    kotlin-lacetest/
 ```
 
 ## 1. Bring up the backend

@@ -34,28 +34,16 @@ secret manager entry — the existing encrypted data is orphaned: still there,
 no longer decryptable. Verify the value carries over before you start, not
 after. See [Secrets & Encryption](secrets.md).
 
-## Pull the Lace tree too
-
-This is the one that catches people, and it fails at build time with an
-unhelpful error.
-
-The backend Docker build context is the **parent directory**, not the backend
-repository, and the Dockerfile copies the sibling `lace/` directories —
-`lacelang-kotlin-validator`, `lacelang-kotlin-executor`, `kotlin-lacetest` —
-into the build context. Pulling only the backend repository leaves you with a
-missing `lace/` tree and an image build that fails at the COPY step.
-
-The Kotlin Lace libraries themselves are pinned Maven dependencies, so there is
-no version coordination for you to manage — the sibling tree just has to exist
-on disk for the Docker build to succeed. (Building with Gradle outside Docker
-does not need it at all.)
-
 ## The upgrade
+
+All Lace libraries are pinned Maven Central dependencies, so there is no
+version coordination to manage — pulling the backend repository is the whole
+source update.
 
 === "Docker Compose"
 
     ```bash
-    # 1. Pull backend and the sibling lace/ repositories
+    # 1. Pull the backend repository
     # 2. Back up Postgres
     # 3. Build and start — the migrator runs first
     docker compose up -d --build

@@ -28,15 +28,15 @@ change. Alternatively, lower `DB_POOL_SIZE`.
 
 See [Scaling](scaling.md).
 
-### The Docker build fails at a COPY step for `lace/`
+### The Docker build fails at a COPY step
 
-**Cause.** The sibling `lace/` tree is missing. The backend's Docker build
-context is the parent directory and its Dockerfile copies the `lace/`
-repositories into the image build, so a missing tree fails with a "not found"
-error at the COPY step.
+**Cause.** The backend's Docker build context is the **parent** of the
+repository root, so the repository must sit at `core/tracedown-core-backend`
+inside a containing directory. Cloned anywhere else, the build fails with a
+"not found" error at the first COPY step.
 
-**Fix.** Clone `lacelang-kotlin-validator`, `lacelang-kotlin-executor` and
-`kotlin-lacetest` next to `core/`. See [Upgrading](upgrading.md).
+**Fix.** Clone into the tree shown in
+[Requirements](../install/requirements.md#source-layout).
 
 ### realtime-service will not start
 
