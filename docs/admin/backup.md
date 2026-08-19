@@ -110,7 +110,7 @@ the gateway and the agent. Bodies are diagnostic detail attached to probe
 steps, not system-of-record data, so whether they are worth backing up depends
 entirely on whether you would miss them.
 
-If `PROBE_AGENT_STORAGE_BACKEND=r2`, bodies live in your bucket instead and the
+If `PROBE_AGENT_STORAGE_BACKEND=s3`, bodies live in your bucket instead and the
 volume is irrelevant — back up the bucket by whatever means it offers, or
 accept its durability. In that configuration the aggregate-worker needs
 `STORAGE_S3_*` credentials to delete bodies when results age out; see

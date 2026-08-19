@@ -82,13 +82,14 @@ Every setting is read from the environment by pydantic-settings with the
 | `PROBE_AGENT_PORT` | Listen port, also used in the self-reported URI | `8443` |
 | `PROBE_AGENT_LOG_LEVEL` | uvicorn log level | `info` |
 | `PROBE_AGENT_MAX_CONCURRENCY` | Probe thread pool size | `256` |
-| `PROBE_AGENT_STORAGE_BACKEND` | `filesystem` or `r2` | `filesystem` |
+| `PROBE_AGENT_STORAGE_BACKEND` | `filesystem` or `s3` | `filesystem` |
 | `PROBE_AGENT_STORAGE_DIR` | Body directory for the filesystem backend | `/data/bodies` |
-| `PROBE_AGENT_R2_ENDPOINT_URL` | R2 endpoint, `r2` backend only | `""` |
-| `PROBE_AGENT_R2_ACCESS_KEY_ID` | R2 access key, `r2` backend only | `""` |
-| `PROBE_AGENT_R2_SECRET_ACCESS_KEY` | R2 secret, `r2` backend only | `""` |
-| `PROBE_AGENT_R2_BUCKET` | R2 bucket, `r2` backend only | `""` |
-| `PROBE_AGENT_R2_PREFIX` | Key prefix within the bucket, `r2` backend only | `""` |
+| `PROBE_AGENT_S3_ENDPOINT_URL` | S3-compatible endpoint (AWS S3, Cloudflare R2, MinIO, …), `s3` backend only | `""` |
+| `PROBE_AGENT_S3_ACCESS_KEY_ID` | Access key, `s3` backend only | `""` |
+| `PROBE_AGENT_S3_SECRET_ACCESS_KEY` | Secret key, `s3` backend only | `""` |
+| `PROBE_AGENT_S3_BUCKET` | Bucket, `s3` backend only | `""` |
+| `PROBE_AGENT_S3_PREFIX` | Key prefix within the bucket, `s3` backend only | `""` |
+| `PROBE_AGENT_S3_REGION` | Bucket region — `auto` suits R2 and is ignored by MinIO; AWS S3 wants the real one | `auto` |
 
 !!! note "`SCHEDULER_URL` points at the gateway"
     The name is historical. Registration and renewal are served by the
@@ -305,8 +306,9 @@ every active, healthy agent is eligible for it. Selection strategy
 When a probe saves a response body, the agent writes it through the configured
 backend. `filesystem` writes under `storage_dir` (`/data/bodies` by default) and
 is the right choice when agents share a volume with the stack or when bodies are
-not worth keeping beyond the retention window. Set `storage_backend=r2` and the
-five `PROBE_AGENT_R2_*` variables to push bodies to object storage instead,
+not worth keeping beyond the retention window. Set `storage_backend=s3` and the
+`PROBE_AGENT_S3_*` variables to push bodies to any S3-compatible object
+storage instead,
 which is what you want once agents are geographically spread and no shared
 filesystem exists.
 
