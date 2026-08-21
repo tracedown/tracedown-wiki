@@ -197,6 +197,30 @@ own, at the cost of those protections. Set the same value on api-gateway,
 probe-scheduler and aggregate-worker — each reads it independently, and a split
 setting produces a stack that enforces the limits in one place and not another.
 
+#### Automatic DNS setup
+
+A user proving ownership has to put a TXT record in their zone. In the domains
+UI they can paste an API token for a supported DNS provider (Cloudflare today)
+and have the gateway write the record for them. The token is used for that one
+request — the zone lookup and the write — and is never stored, logged, or
+reused. There is nothing to configure: the option appears wherever the provider
+is reachable, and the record can always be added by hand instead.
+
+The gateway also recognises the domain's DNS provider from its name-server
+delegation (`DnsProviderProfiles` — Cloudflare, Route 53, GoDaddy, Namecheap and
+a dozen more), walking up from `api.example.com` to the zone actually delegated.
+That costs one DNS lookup and needs no credential, so it works for providers we
+have no API client for: it names the provider and, where one exists, the page
+that edits that zone's records.
+
+Where a recognised provider has an addressable DNS page, the domains UI offers
+an "Open DNS in <provider>" button that goes straight to it — the record is
+still pasted by hand, and no credential is involved.
+
+A host application can replace that with something richer through the
+frontend's `domain-dns-setup` slot; when it does, the built-in button stands
+down rather than offering the same thing twice.
+
 #### Retention
 
 | Variable | Purpose | Default | Required |
@@ -210,6 +234,26 @@ setting produces a stack that enforces the limits in one place and not another.
     services with the same name. If the gateway's value exceeds the worker's,
     the UI offers a window whose data has already been deleted. Keep them
     identical. See [Retention & Aggregation](../admin/retention.md).
+
+#### Variables
+
+| Variable | Purpose | Default | Required |
+|---|---|---|---|
+| `MAX_VARS_PER_RESOURCE` | Most variables one resource may hold | `100` | No |
+
+Counted **separately per resource** — per organization, workspace, project,
+service and webhook — so a project at the cap does not stop its services having
+their own. Variables are read on every probe dispatch, so an unbounded set costs
+both storage and hot-path time; the cap bounds runaway or automated creation,
+and is the same number for every organization.
+
+System-managed variables are not counted against it: the defaults seeded at
+organization creation, and the companion variables a config toggle creates.
+Enabling a feature never fails for want of room.
+
+Deleting a variable frees its slot — the count is of live variables, not of
+everything ever created. A create beyond the cap is refused with
+`variable_limit_reached`.
 
 #### Probe request limits
 
