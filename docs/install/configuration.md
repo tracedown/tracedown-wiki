@@ -213,9 +213,13 @@ That costs one DNS lookup and needs no credential, so it works for providers we
 have no API client for: it names the provider and, where one exists, the page
 that edits that zone's records.
 
-A host application uses that to offer further ways to place the record, through
-the frontend's `domain-dns-setup` slot. Whichever path was used is recorded on
-the domain as provenance.
+Where a recognised provider has an addressable DNS page, the domains UI offers
+an "Open DNS in <provider>" button that goes straight to it — the record is
+still pasted by hand, and no credential is involved.
+
+A host application can replace that with something richer through the
+frontend's `domain-dns-setup` slot; when it does, the built-in button stands
+down rather than offering the same thing twice.
 
 #### Retention
 
