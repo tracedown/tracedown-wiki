@@ -1,3 +1,6 @@
+---
+description: "Environment-variable reference for every Tracedown service - DATABASE_URL, REDIS_A_URL, PLATFORM_AES_KEY, JWT_SECRET, ports, email, storage and job intervals."
+---
 # Configuration
 
 Every service reads a HOCON config file baked into its JAR, and every value you

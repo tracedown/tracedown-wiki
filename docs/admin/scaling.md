@@ -1,3 +1,6 @@
+---
+description: "Which Tracedown services are safe to replicate and which must run exactly once, plus scheduler throughput, agent capacity, database pools and splitting Redis."
+---
 # Scaling
 
 Tracedown scales along three mostly independent axes: how many probes the

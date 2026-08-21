@@ -1,3 +1,6 @@
+---
+description: "Scoped variables in Tracedown probes: the $o., $w., $p. and $s. prefixes, secrets encrypted at rest, writeback, computed values and configuration variables."
+---
 # Variables
 
 Variables keep credentials, base URLs and counters out of probe scripts. They

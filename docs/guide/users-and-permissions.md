@@ -1,3 +1,6 @@
+---
+description: "Access in Tracedown runs on two axes: org-wide permission sections and per-resource grants on workspaces, projects and services. Plus groups, invites and TOTP."
+---
 # Users & Permissions
 
 Access in Tracedown is decided along **two independent axes**, and almost every

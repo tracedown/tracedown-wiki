@@ -1,3 +1,6 @@
+---
+description: "Upgrading self-hosted Tracedown: the Flyway schema-migrator runs to completion before any service starts, plus backups, undo scripts and upgrading probe agents."
+---
 # Upgrading
 
 Upgrading Tracedown is mostly uneventful, because the schema migration is not

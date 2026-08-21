@@ -1,3 +1,6 @@
+---
+description: "The Tracedown name and eye-with-sparkline logo are trademarks, not covered by the Apache 2.0 source licence. Which uses are welcome and which are not."
+---
 # Name & Logo
 
 The Tracedown **source code** is Apache 2.0 — use it, modify it, redistribute

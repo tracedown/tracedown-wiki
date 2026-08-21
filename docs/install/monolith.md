@@ -1,3 +1,6 @@
+---
+description: "Run all of Tracedown from a single jar: one JVM, dashboard included, probes executed in-process. Needs only PostgreSQL, Redis and Java 17, plus the trade-offs."
+---
 # Monolith (single jar)
 
 The monolith is the entire platform in one artifact: every service in a single

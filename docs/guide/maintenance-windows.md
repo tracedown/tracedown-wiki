@@ -1,3 +1,6 @@
+---
+description: "Maintenance windows pause probing of a Tracedown service on a recurring schedule - no requests, no results, no alerts. How they differ from a silence."
+---
 # Maintenance Windows
 
 A maintenance window **pauses probing** for a service on a recurring schedule.

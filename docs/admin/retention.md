@@ -1,3 +1,6 @@
+---
+description: "How Tracedown's aggregate-worker rolls raw probe results into hourly and daily buckets, ages raw rows out, trims the outbox, and why it must not be replicated."
+---
 # Retention & Aggregation
 
 A probe running every minute produces about 43,000 raw results a month, each

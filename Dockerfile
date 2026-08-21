@@ -6,7 +6,23 @@ COPY mkdocs.yml .
 COPY docs/ docs/
 COPY overrides/ overrides/
 
-RUN pip install --no-cache-dir "mkdocs>=1.6,<2" "mkdocs-material>=9.6,<10" ./pygments-lace && \
+# Social cards (the `social` plugin) rasterise the logo and page text, so the
+# build stage needs Cairo, FreeType and friends. Package list is upstream's:
+# https://squidfunk.github.io/mkdocs-material/plugins/requirements/image-processing/
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+        libcairo2-dev \
+        libfreetype6-dev \
+        libffi-dev \
+        libjpeg-dev \
+        libpng-dev \
+        libz-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# `mkdocs-material[imaging]` pulls cairosvg + pillow, required by the social plugin.
+# The build needs outbound network: the social plugin fetches the card font from
+# Google Fonts on first build.
+RUN pip install --no-cache-dir "mkdocs>=1.6,<2" "mkdocs-material[imaging]>=9.6,<10" ./pygments-lace && \
     mkdocs build --strict
 
 FROM nginx:alpine

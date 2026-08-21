@@ -1,3 +1,6 @@
+---
+description: "The Tracedown user manual: workspaces, projects and services, writing probe scripts in Lace, reading results, and getting told when one of your APIs breaks."
+---
 # User Manual
 
 This section is for people using Tracedown: setting up checks, reading what

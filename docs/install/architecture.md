@@ -1,3 +1,6 @@
+---
+description: "How self-hosted Tracedown fits together: eight JVM services, a probe agent, PostgreSQL and Redis, joined by a transactional outbox, Redis queues and mTLS."
+---
 # Architecture
 
 Tracedown is eight long-running JVM services, a one-shot schema migrator, a

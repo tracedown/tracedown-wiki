@@ -1,3 +1,6 @@
+---
+description: "Operating a self-hosted Tracedown install: secrets and encryption, the certificate authority, backup and restore, retention, scaling, monitoring and upgrades."
+---
 # Administration
 
 The [Installation](../install/index.md) section gets Tracedown running. This

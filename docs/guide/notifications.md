@@ -1,3 +1,6 @@
+---
+description: "Tracedown has no alert-rule builder - your probe script emits notification events. How they are grouped, templated and delivered over email and webhooks."
+---
 # Notifications
 
 **Alerts are authored in the probe script, not in a UI rule builder.** There is

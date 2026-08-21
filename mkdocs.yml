@@ -34,6 +34,21 @@ theme:
     - search.highlight
     - toc.follow
 
+plugins:
+  # NOTE: declaring `plugins:` at all disables the implicit `search` plugin,
+  # so it must be listed explicitly here or site search breaks.
+  - search
+  # Renders an Open Graph / Twitter card per page and emits the og:* and
+  # twitter:* meta tags. Needs the `imaging` extra (cairosvg/pillow) plus the
+  # system cairo/pango libraries — see the Dockerfile.
+  - social:
+      cards_layout_options:
+        # Brand colours taken from docs/assets/logo.svg: the logo sits on a
+        # #222729 disc, so the card background matches it seamlessly.
+        background_color: "#222729"
+        color: "#ffffff"
+        font_family: Roboto
+
 extra_css:
   - stylesheets/extra.css
 

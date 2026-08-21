@@ -1,6 +1,69 @@
 {% extends "base.html" %}
 
-{% block extrahead %}
-  <script async defer src="https://buttons.github.io/buttons.js"></script>
+{#-
+  Keyword-bearing <title> for pages that ask for one via front matter:
+
+      ---
+      htmltitle: "Tracedown — Self-Hosted API & Synthetic Monitoring Platform"
+      ---
+
+  Used on the homepage only, whose title would otherwise be the bare site_name.
+  Every other page falls through to the theme's default `{page} - {site_name}`.
+-#}
+{% block htmltitle %}
+  {% if page and page.meta and page.meta.htmltitle %}
+    <title>{{ page.meta.htmltitle }}</title>
+  {% else %}
+    {{ super() }}
+  {% endif %}
 {% endblock %}
 
+{% block extrahead %}
+  {{ super() }}
+  <script async defer src="https://buttons.github.io/buttons.js"></script>
+  {%- if page and page.is_homepage %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Tracedown",
+    "url": "https://tracedown.dev/",
+    "description": "Tracedown is a self-hosted API monitoring platform. It runs scripted multi-step HTTP probes against your APIs on a schedule, records every call and assertion in full, and notifies your team when something breaks or slows down.",
+    "applicationCategory": "DeveloperApplication",
+    "applicationSubCategory": "API monitoring",
+    "operatingSystem": "Linux, Docker, Java 17",
+    "softwareRequirements": "PostgreSQL 16, Redis 7, Docker or a Java 17 runtime",
+    "license": "https://www.apache.org/licenses/LICENSE-2.0",
+    "isAccessibleForFree": true,
+    "downloadUrl": "https://github.com/tracedown/tracedown-core-backend/releases",
+    "installUrl": "https://tracedown.dev/install/",
+    "author": {
+      "@type": "Organization",
+      "name": "Tracedown",
+      "url": "https://github.com/tracedown"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "EUR",
+      "category": "Free, self-hosted, open source"
+    },
+    "sameAs": [
+      "https://github.com/tracedown",
+      "https://lacelang.dev"
+    ],
+    "featureList": [
+      "Scripted multi-step HTTP probes written in the Lace language",
+      "Assertions on status, body, JSON schema, headers, size, redirects and each timing phase",
+      "Cron-based scheduling per service with per-call timeouts and queue policies",
+      "Distributed probe agents authenticated with mutual TLS against an internal CA",
+      "Scoped variables at organization, workspace, project and service level, encrypted at rest",
+      "Email and webhook notifications with silences, quiet hours and maintenance windows",
+      "Full run history with hourly and daily aggregation and configurable retention",
+      "Organizations, workspaces, projects, per-section permissions, API keys and TOTP two-factor",
+      "Prometheus scrape endpoint and Grafana integration"
+    ]
+  }
+  </script>
+  {%- endif %}
+{% endblock %}

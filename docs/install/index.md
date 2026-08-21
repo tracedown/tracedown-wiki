@@ -1,3 +1,6 @@
+---
+description: "Install self-hosted Tracedown with the one-line installer, the Docker Compose quickstart, the production release stack, or the single-jar monolith."
+---
 # Installation
 
 The fastest route is the interactive installer — it can stand up the

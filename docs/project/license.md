@@ -1,3 +1,6 @@
+---
+description: "Tracedown is open-source software under the Apache License 2.0 - read it, run it, modify it, self-host it. The name and logo are trademarks and excluded."
+---
 # License
 
 Tracedown is **open-source** software, distributed under the

@@ -1,3 +1,6 @@
+---
+description: "Tracedown failure modes with cause and fix: the stack not starting on a small host, Docker build COPY errors, agent enrolment and certificates, emails not sent."
+---
 # Troubleshooting
 
 Known failure modes, each as cause and fix. They are grouped by when you hit

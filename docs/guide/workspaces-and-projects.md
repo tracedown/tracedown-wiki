@@ -1,3 +1,6 @@
+---
+description: "Why Tracedown nests workspaces inside organizations and projects inside workspaces: they are the levels at which variables and access grants cascade downward."
+---
 # Workspaces & Projects
 
 Tracedown organizes everything into a four-level tree:

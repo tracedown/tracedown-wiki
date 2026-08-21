@@ -1,3 +1,6 @@
+---
+description: "The ideas behind Tracedown: the organization, workspace, project and service hierarchy, probes as scripts, hard and soft assertions, runs, calls and agents."
+---
 # Concepts
 
 Six ideas carry the whole product. Everything else in this manual assumes them.
