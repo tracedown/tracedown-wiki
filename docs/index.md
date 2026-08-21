@@ -1,3 +1,7 @@
+---
+description: "Tracedown is a self-hosted, open-source API monitoring platform: scripted multi-step HTTP probes, distributed agents, alerting, and full run history."
+htmltitle: "Tracedown — Self-Hosted API & Synthetic Monitoring Platform"
+---
 # Tracedown
 
 Tracedown is a **self-hosted API monitoring platform**. It runs automated

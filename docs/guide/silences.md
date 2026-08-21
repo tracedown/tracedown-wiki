@@ -1,3 +1,6 @@
+---
+description: "Silences and quiet hours mute your own Tracedown notifications per user and per resource, while probes keep running and the recorded history stays honest."
+---
 # Silences & Quiet Hours
 
 Silences and quiet hours are how you stop notifications reaching **you** without

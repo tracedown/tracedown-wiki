@@ -1,3 +1,6 @@
+---
+description: "Host sizing, Docker, PostgreSQL 16 and Redis 7 versions needed to run self-hosted Tracedown - and why TimescaleDB is a convenience, not a dependency."
+---
 # Requirements
 
 ## Host

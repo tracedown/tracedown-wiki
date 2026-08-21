@@ -1,3 +1,6 @@
+---
+description: "Tracedown runs on stock PostgreSQL 16 with no extensions and no hypertables. How the Flyway schema-migrator applies, orders and undoes schema migrations."
+---
 # Database & Migrations
 
 Tracedown stores everything in a single PostgreSQL 16 database. Schema changes

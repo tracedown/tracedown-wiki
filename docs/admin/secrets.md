@@ -1,3 +1,6 @@
+---
+description: "PLATFORM_AES_KEY encrypts Tracedown's probe variables, TOTP secrets and CA root key. Generating real values, envelope encryption, and what cannot be rotated."
+---
 # Secrets & Encryption
 
 Tracedown holds credentials on your behalf. Probe variables contain the API

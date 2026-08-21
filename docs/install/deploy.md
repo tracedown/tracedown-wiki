@@ -1,3 +1,6 @@
+---
+description: "Deploy Tracedown for real from published release artifacts with Docker Compose or one-click Railway, behind your own web server, with real secrets set."
+---
 # Production Deploy (release artifacts)
 
 The deploy stack in `core/tracedown-core-backend/docker/deploy/` runs the whole
@@ -8,11 +11,11 @@ pinned by version or tracking latest. This is the intended production setup for
 the full, agent-capable edition. (For the smallest installs, the
 [monolith](monolith.md) is one jar instead of this stack.)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/X0JkJZ?referralCode=htSVme)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/tracedown-core-template?referralCode=htSVme)
 
 Don't want to manage a host? The same stack — all services, Postgres, Redis,
 and the dashboard behind an edge proxy — deploys to
-[Railway](https://railway.com/deploy/X0JkJZ?referralCode=htSVme) in one click
+[Railway](https://railway.com/deploy/tracedown-core-template?referralCode=htSVme) in one click
 with the button above. The rest of this page covers running it on your own
 machine.
 

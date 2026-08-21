@@ -1,3 +1,6 @@
+---
+description: "Backing up self-hosted Tracedown is pg_dump plus PLATFORM_AES_KEY, stored apart from each other. What to back up, what to skip, and how to restore it."
+---
 # Backup & Restore
 
 Tracedown has no built-in backup scheduler, no snapshot command, and no restore

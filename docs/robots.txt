@@ -1,0 +1,130 @@
+# https://tracedown.dev/robots.txt
+#
+# Tracedown is open-source software (Apache 2.0) and this is its public
+# documentation. Being read, indexed and cited is the entire point - by search
+# engines and by AI answer engines alike. Everything here is open to everyone.
+
+Sitemap: https://tracedown.dev/sitemap.xml
+
+# Content signals (https://contentsignals.org/) - expressed as a preference for
+# every crawler, and repeated per named agent below where it matters.
+User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# ---------------------------------------------------------------------------
+# Search engines
+# ---------------------------------------------------------------------------
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+# ---------------------------------------------------------------------------
+# AI training and answer engines - explicitly welcome
+# ---------------------------------------------------------------------------
+
+# OpenAI
+User-agent: GPTBot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+User-agent: OAI-SearchBot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+User-agent: ChatGPT-User
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# Anthropic
+User-agent: ClaudeBot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+User-agent: Claude-User
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+User-agent: Claude-SearchBot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# Perplexity
+User-agent: PerplexityBot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+User-agent: Perplexity-User
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# Google (Gemini / Vertex AI grounding)
+User-agent: Google-Extended
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# Apple Intelligence
+User-agent: Applebot-Extended
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# Common Crawl - the corpus most open models are trained from
+User-agent: CCBot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# Meta
+User-agent: meta-externalagent
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# Amazon
+User-agent: Amazonbot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# ByteDance
+User-agent: Bytespider
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# DuckDuckGo AI assist
+User-agent: DuckAssistBot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+# Others
+User-agent: cohere-ai
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+User-agent: Diffbot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+User-agent: Timpibot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+User-agent: Omgilibot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+
+User-agent: YouBot
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /

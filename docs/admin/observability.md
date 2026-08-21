@@ -1,3 +1,6 @@
+---
+description: "Monitoring Tracedown itself: the Prometheus scrape endpoint for probe results, Grafana integration tokens, health endpoints, agent health challenges and logs."
+---
 # Monitoring Tracedown
 
 Tracedown watches your APIs. This page is about watching Tracedown — knowing

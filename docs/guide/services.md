@@ -1,3 +1,6 @@
+---
+description: "A Tracedown service is one probe script, one cron schedule and a dispatch policy. Creating one, setting probe mode, queue policy, agents, webhooks and deletion."
+---
 # Services
 
 A service is the thing you are monitoring. Concretely it is three things bound

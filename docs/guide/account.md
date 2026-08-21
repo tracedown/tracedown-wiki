@@ -1,3 +1,6 @@
+---
+description: "Your Tracedown account: profile and display name, changing your email and password, two-factor authentication, active sessions, silences and quiet hours."
+---
 # Your Account
 
 Everything that belongs to you rather than to the organization lives under **My

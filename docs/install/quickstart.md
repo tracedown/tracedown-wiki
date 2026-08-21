@@ -1,3 +1,6 @@
+---
+description: "Run self-hosted API monitoring locally with Docker Compose: bring up Postgres, Redis and nine JVM services, log in, and enrol your first probe agent."
+---
 # Quickstart (Docker)
 
 This page takes you from an empty directory to a running Tracedown with one

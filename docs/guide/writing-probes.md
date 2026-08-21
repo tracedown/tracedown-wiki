@@ -1,3 +1,6 @@
+---
+description: "Write API monitoring probes in the Lace language: the validating script editor, templates, assertions, chaining calls, emitting alerts and using variables."
+---
 # Writing Probes
 
 A probe is a [Lace](https://lacelang.dev) script attached to a service. This page

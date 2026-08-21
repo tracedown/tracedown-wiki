@@ -1,3 +1,6 @@
+---
+description: "Tracedown's built-in CA signs every probe agent certificate for scheduler mTLS. Where the RSA-4096 root key lives, how rotation works, and what losing it costs."
+---
 # Certificate Authority
 
 Tracedown runs its own internal certificate authority. Every probe agent holds a

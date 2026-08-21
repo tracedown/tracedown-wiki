@@ -1,3 +1,6 @@
+---
+description: "Read Tracedown probe results: success-rate stats, service metrics, run history, per-call DNS, TLS and TTFB timings, assertion detail and live WebSocket updates."
+---
 # Reading Results
 
 Every probe run is stored whole: each call, each timing phase, and every

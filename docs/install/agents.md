@@ -1,3 +1,6 @@
+---
+description: "Deploy Tracedown probe agents: a stateless Python FastAPI service that runs Lace scripts, enrols over mTLS with a bootstrap token, and is health-checked."
+---
 # Probe Agents
 
 A probe agent is the thing that actually makes the HTTP requests. Everything
