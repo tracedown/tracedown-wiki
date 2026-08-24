@@ -3,18 +3,22 @@ description: "Install self-hosted Tracedown with the one-line installer, the Doc
 ---
 # Installation
 
-The fastest route is the interactive installer — it can stand up the
-[monolith](monolith.md), the full [per-service stack](deploy.md), or connect a
-probe agent to an existing stack:
+The fastest route is the [interactive installer](installer.md) — it can stand up
+the [monolith](monolith.md), the full [per-service stack](deploy.md), connect a
+probe agent to an existing stack, or generate Kubernetes manifests for the
+monolith:
 
 ```bash
 curl -fsSL https://tracedown.dev/install.sh | bash
 ```
 
-It only needs Docker (with the Compose plugin), asks before touching anything,
-and every prompt can be pre-answered with a `TD_*` variable for unattended
-installs — the [script](https://github.com/tracedown/tracedown-install) is
-short and worth reading before piping, as any script should be.
+It only needs Docker with the Compose plugin (`kubectl` for the Kubernetes
+mode), asks before touching anything, and every prompt can be pre-answered with
+a `TD_*` variable for unattended installs. The
+[script](https://github.com/tracedown/tracedown-install) is short and worth
+reading before piping, as any script should be —
+**[Interactive Installer](installer.md)** documents every mode, prompt and
+variable.
 
 Tracedown ships in two forms, and there are three ways to run it:
 
@@ -32,13 +36,14 @@ operational shape, and [Monolith](monolith.md) is candid about the trade.
 Read these in order:
 
 1. **[Requirements](requirements.md)** — what you need before you start.
-2. **[Quickstart (Docker)](quickstart.md)** — a running system in a few minutes.
-3. **[Production Deploy](deploy.md)** — the release-artifact stack behind your web server.
-4. **[Monolith](monolith.md)** — the single-jar edition.
-5. **[Architecture](architecture.md)** — what the services are and how they talk.
-6. **[Configuration](configuration.md)** — the full environment-variable reference.
-7. **[Database & Migrations](database.md)** — how schema changes are applied.
-8. **[Probe Agents](agents.md)** — deploying agents and enrolling them over mTLS.
+2. **[Interactive Installer](installer.md)** — the one-line route, and what it asks.
+3. **[Quickstart (Docker)](quickstart.md)** — a running system in a few minutes.
+4. **[Production Deploy](deploy.md)** — the release-artifact stack behind your web server.
+5. **[Monolith](monolith.md)** — the single-jar edition.
+6. **[Architecture](architecture.md)** — what the services are and how they talk.
+7. **[Configuration](configuration.md)** — the full environment-variable reference.
+8. **[Database & Migrations](database.md)** — how schema changes are applied.
+9. **[Probe Agents](agents.md)** — deploying agents and enrolling them over mTLS.
 
 !!! warning "The development stack ships with development secrets"
     The Quickstart's `.env.example` contains a placeholder encryption key, a
