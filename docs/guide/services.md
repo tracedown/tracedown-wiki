@@ -158,6 +158,27 @@ a particular region.
     The agent picker writes immediately when you add or remove an agent — it is
     not part of the form's Save, and Cancel will not undo it.
 
+### Response bodies
+
+Whether a run keeps the response body of each call. On by default, so a failure
+can be opened and read.
+
+Turning it off is a real trade and worth making deliberately: runs still record
+status, timings and every assertion, but **when this service fails there will be
+no stored body to inspect** — which is usually the thing you want most at that
+moment. Reach for it when the bodies are large, or when they carry something you
+would rather not keep at all.
+
+The setting is a ceiling, not a switch. Two other things can still withhold a
+body when this is on: the probe script has to ask for the body in the first
+place, and a service targeting an
+[unverified domain](../admin/troubleshooting.md) has saving disabled by the
+anti-abuse policy regardless. Nothing overrides this setting in the other
+direction — off means off.
+
+The config view shows the current state as **Saved** or **Not saved**, so you do
+not have to open the edit form to check.
+
 ### Webhooks
 
 Webhooks are bound to the service from the edit form, each binding with its own

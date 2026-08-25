@@ -345,10 +345,18 @@ Redis A, and the agents over mutual TLS.
 | `PROBE_DEFAULT_TIMEOUT_MS` | Per-request timeout when a service has no override | `30000` | No |
 | `PROBE_MAX_TIMEOUT_MS` | System-wide maximum timeout | `300000` | No |
 | `PROBE_MAX_REDIRECTS` | Maximum redirect hops | `10` | No |
+| `PROBE_PAYLOAD_ENCRYPTION_ENABLED` | Fleet-wide kill switch for per-agent payload sealing | `true` | No |
 
 `PROBE_MAX_TIMEOUT_MS` is a clamp, not a default — per-service overrides are
 capped at it, so it is the real ceiling on how long one probe can occupy a
 dispatch worker.
+
+`PROBE_PAYLOAD_ENCRYPTION_ENABLED` turns nothing on. Whether a dispatch is
+sealed to the agent's certificate on top of mutual TLS is a **per-agent**
+setting — see [Probe Agents](agents.md#encrypting-the-payload-in-flight). This
+variable exists only so the mechanism can be disabled fleet-wide from the
+environment, without editing rows; set it `false` and every dispatch travels as
+it did before, inside mutual TLS and nothing more.
 
 The `GATEWAY_URL` default points at `localhost:8080`, which is **not** the
 gateway's own default port. Set it explicitly; in Compose it is the internal

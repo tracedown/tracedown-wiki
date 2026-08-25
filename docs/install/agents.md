@@ -238,6 +238,47 @@ context, so new connections serve the new certificate immediately (existing
 connections finish on the old one). A self-hosted agent left running for years
 rotates its certificate on its own — there is no annual restart to remember.
 
+### Encrypting the payload in flight
+
+A dispatch carries the Lace script and every resolved variable for that service,
+secrets included. Mutual TLS already closes that to the network. What it does
+not close is a hop that *terminates* TLS on the way — an ingress, a managed
+edge, a tunnel — because such a hop decrypts, reads and re-encrypts.
+
+Turning **Encrypt payload in flight** on for an agent (Settings → Agents, expand
+the agent) seals the job body to that agent's own certificate before it reaches
+the TLS layer: a random AES-256-GCM key encrypts the body, and that key is
+wrapped with RSA-OAEP-256 to the public key in the certificate the gateway
+issued the agent. The private key never left the agent, so only that agent can
+unwrap it, and a terminating hop sees an opaque envelope. The reply comes back
+the same way, sealed to the scheduler's certificate.
+
+It is a per-agent setting because the exposure is a property of the path, not of
+the platform. An agent on the same private network as the scheduler gains
+nothing, and sealing is not free — each run costs an RSA operation at both ends.
+Turn it on for the agents you reach through something that terminates TLS, and
+leave the rest alone. It is off by default.
+
+Both ends must be current. The agent reports whether it can open a sealed
+dispatch as part of its [health challenge](#health-challenges), and the
+dashboard will not arm the toggle for an agent that says it cannot — upgrade the
+agent and the setting becomes available after its next challenge. If an agent is
+downgraded *after* the toggle was armed, the scheduler logs a warning and
+dispatches unsealed rather than failing the probe: monitoring keeps running, and
+the warning is the signal to fix it.
+
+!!! note "What this does not buy you"
+    It is not protection against a compromised agent. The agent has to decrypt
+    the payload to run the probe at all, so whoever owns the agent owns the
+    script and the variables however they arrived. Nor is it a data-residency
+    control — it changes how the payload travels, not where it is executed or
+    where the bodies it saves are stored.
+
+The whole mechanism can be switched off from the scheduler's environment with
+`PROBE_PAYLOAD_ENCRYPTION_ENABLED=false`; see
+[Configuration](configuration.md). That is a kill switch and nothing more — it
+cannot turn sealing *on* for an agent that has not been set to it.
+
 ## Health challenges
 
 The agent exposes two health endpoints:

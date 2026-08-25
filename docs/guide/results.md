@@ -168,9 +168,13 @@ When a body is not available the UI says one of:
 - **Body not stored: {reason}** — saving was on, but this body was not kept.
 - **Body saving not enabled** — body saving is off for this probe.
 
-Body saving is off by default. It is a deliberate default rather than an
-oversight: bodies are the most expensive thing to keep and the most likely to
-contain data you would rather not store.
+Bodies are the most expensive thing to keep and the most likely to contain data
+you would rather not store, so nothing keeps one unless it was asked for. Three
+things decide it, and all three have to allow it: the probe script has to ask for
+the body, the service's
+[Response bodies](services.md#response-bodies) setting has to be on, and the
+service must not be targeting an unverified domain — the anti-abuse policy
+disables saving there regardless.
 
 ## Live updates
 
