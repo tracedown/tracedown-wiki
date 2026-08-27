@@ -32,6 +32,28 @@ user before doing anything.
 
 Mode 3 requires an existing full-stack installation. Modes 1, 2 and 4 do not.
 
+!!! warning "The admin login prompts need `SINGLE_ORG_MODE=true` to take effect"
+    Modes 1, 2 and 4 ask for an admin email and password and write them as
+    `DEMO_USER_EMAIL` / `DEMO_USER_PASSWORD`. Those are read by one thing — the
+    first-start bootstrap — and that bootstrap is **off by default**
+    (`SINGLE_ORG_MODE`), which the installer does not set. Without it the stack
+    comes up with an empty user table and no way in, because
+    [the bootstrap is the only path in Tracedown that creates a
+    user](configuration.md#the-first-account).
+
+    Add it before the first start:
+
+    | Mode | Where |
+    |---|---|
+    | 1 — Monolith | `SINGLE_ORG_MODE: "true"` in the generated `docker-compose.yml`, in the monolith service's `environment:` map |
+    | 2 — Full stack | Uncomment `SINGLE_ORG_MODE=true` in the generated `.env` — the stack reads it via `env_file` |
+    | 4 — Kubernetes | `- { name: SINGLE_ORG_MODE, value: "true" }` in the gateway container's `env:` list |
+
+    Turn it back off once you have signed in. Mode 2 arms
+    `DEPLOYMENT_ENV=production` whenever SMTP is configured, and there the
+    bootstrap refuses the published credentials outright — which is why that
+    mode insists on a password of your own.
+
 ## Prompts
 
 Every prompt is skipped when its variable is already set. Defaults are shown in
@@ -79,10 +101,16 @@ The vhost prompts appear only when nginx is installed on the host. `TD_NGINX_ROO
 overrides `/etc/nginx`; when it is set, `nginx -t` and the reload are skipped.
 
 !!! warning "No default admin password in this mode"
-    Modes 1 and 4 ship a known default password for local trials. Mode 2 does
+    Modes 1 and 4 offer `Down2trace!` as a default for local trials. Mode 2 does
     not and will not proceed without one. See
     [Secrets & Encryption](../admin/secrets.md) before the install is reachable
     by others.
+
+    Accepting that default is only viable while `DEPLOYMENT_ENV` is not
+    `production`. Modes 1, 2 and 4 all set `DEPLOYMENT_ENV=production` once an
+    SMTP provider is configured, and the gateway then refuses to bootstrap on
+    the published email or password at all — supply your own in every mode that
+    will send real mail.
 
 ### 3 — Probe agent
 

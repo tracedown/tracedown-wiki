@@ -51,20 +51,41 @@ REDIS_A_URL=redis://localhost:6379 \
 java -jar tracedown-monolith-<version>-all.jar
 ```
 
-On an empty database it migrates the schema, initializes the internal
-certificate authority, and (with the default `SINGLE_ORG_MODE=true`) bootstraps
-the default organization and demo user — the same first-start behavior as the
-full stack, including the demo credentials, so change them the same way (see
-[Quickstart, step 2](quickstart.md#2-log-in)).
+On an empty database it migrates the schema and initializes the internal
+certificate authority. It does **not** create an account: `SINGLE_ORG_MODE` is
+off by default, and it is the only thing in Tracedown that creates a user. Add
+it to the command above for the first start:
 
-Open `http://localhost:20714` and log in. Services you create begin probing on
-their schedule immediately — there is no agent to enrol.
+```bash
+SINGLE_ORG_MODE=true \
+DATABASE_URL=jdbc:postgresql://localhost:5432/tracedown \
+… \
+java -jar tracedown-monolith-<version>-all.jar
+```
+
+That bootstraps a default organization owned by `DEMO_USER_EMAIL` /
+`DEMO_USER_PASSWORD`, which default to the published `admin@tracedown.dev` /
+`Down2trace!`. Open `http://localhost:20714` and log in. Services you create
+begin probing on their schedule immediately — there is no agent to enrol.
+
+Once you are in, drop the flag: it only ever acts on an empty user table, so
+leaving it set does nothing, but it is one less thing to reason about.
+
+!!! danger "In production, set real bootstrap credentials or it will not start"
+    Under `DEPLOYMENT_ENV=production` — which you should be setting, see below —
+    `SINGLE_ORG_MODE=true` with either credential still on its published value
+    is a **startup failure**, not a warning, and the password must pass the
+    password policy. There is no override; `ALLOW_INSECURE_DEV_KEYS` does not
+    lift it. Set both, start once, sign in, then turn the flag back off. See
+    [The first account](configuration.md#the-first-account).
 
 !!! warning "Set real secrets before this reaches a network"
     Like the development Compose stack, the monolith boots with development
     defaults when secrets are unset — including the platform encryption key.
-    Set `PLATFORM_AES_KEY` (64 hex chars, permanent — generate with
-    `openssl rand -hex 32`), `JWT_SECRET`, and `DEPLOYMENT_ENV=production`,
+    Set `PLATFORM_AES_KEY` (64 hex chars — generate with
+    `openssl rand -hex 32`, and set it before you have data worth keeping,
+    because only part of what it encrypts can be moved to a new key later),
+    `JWT_SECRET`, and `DEPLOYMENT_ENV=production`,
     which makes startup refuse placeholder secrets instead of running with
     them. Work through [Secrets & Encryption](../admin/secrets.md).
 
@@ -94,6 +115,11 @@ anything.
 The remaining services bind their usual ports (`20810`–`20870`) inside the
 process. Nothing but the three in the table needs to be reachable — keep the
 rest firewalled as you would any internal port.
+
+Each of those ports still answers `/ping` and `/health` for the service behind
+it, which is how you tell *which* embedded component is unhappy in a process
+that shares one exit code. See [Monitoring
+Tracedown](../admin/observability.md#health-endpoints).
 
 ### In a container
 
@@ -129,12 +155,18 @@ The gateway's CLI tools ride along in the jar, so the one artifact also
 administers itself:
 
 ```bash
-java -jar tracedown-monolith-<version>-all.jar --create-org "My Org" admin@example.com
+java -jar tracedown-monolith-<version>-all.jar --create-org "My Org" --owner admin@example.com
 ```
+
+The owner must be an existing user — `--create-org` assigns an organization, it
+does not create an account. Without `--owner` it falls back to `DEMO_USER_EMAIL`
+and fails if no such user exists.
 
 `--agent-bootstrap` and `--agent-remove` are present too, for symmetry with the
 gateway binary, but enrolled agents are never selected in the monolith — probes
-always run in-process.
+always run in-process. `--rewrap-org-keys` is there as well, for moving the org
+data-encryption keys onto a new `PLATFORM_AES_KEY` — see
+[Secrets & Encryption](../admin/secrets.md#rotating-the-platform-key-for-org-deks).
 
 ## What "in-process execution" means for results
 
