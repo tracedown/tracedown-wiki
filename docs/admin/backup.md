@@ -89,9 +89,11 @@ Two failure modes follow, and they pull in opposite directions:
   and the encryption bought you nothing.
 
 So the key goes somewhere durable and *separate*: a password manager, a secrets
-manager, an offline copy in a safe. Not next to the dumps. Because the key
-[cannot be rotated](secrets.md#platform_aes_key-cannot-yet-be-fully-rotated),
-losing it is not an incident you recover from — it is a rebuild.
+manager, an offline copy in a safe. Not next to the dumps. Moving to a new key
+is possible while you still hold the old one —
+[partly by command, partly by hand](secrets.md#re-keying-an-installation-that-already-holds-data)
+— but that is a rotation path, not a recovery path. Losing the key is not an
+incident you recover from; it is a rebuild.
 
 ### Redis A — worth backing up, not catastrophic
 
@@ -174,7 +176,7 @@ encryption key must be backed up too, and somewhere else.
 
 ## Related
 
-- [Secrets & Encryption](secrets.md) — why the key cannot be rotated.
+- [Secrets & Encryption](secrets.md) — what the key protects, and how far it can be re-keyed.
 - [Database & Migrations](../install/database.md) — how the migrator behaves.
 - [Certificate Authority](certificate-authority.md) — the CA root in `ca_root`.
 - [Retention & Aggregation](retention.md) — what is deleted automatically.

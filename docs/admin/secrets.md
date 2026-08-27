@@ -1,5 +1,5 @@
 ---
-description: "PLATFORM_AES_KEY encrypts Tracedown's probe variables, TOTP secrets and CA root key. Generating real values, envelope encryption, and what cannot be rotated."
+description: "PLATFORM_AES_KEY encrypts Tracedown's probe variables, TOTP secrets and CA root key. Generating real values, envelope encryption, and how far the key can be rotated."
 ---
 # Secrets & Encryption
 
@@ -75,6 +75,18 @@ unset, so a bootstrap token cannot be minted under an accidental default key.
     to start rather than running on published secrets. `ALLOW_INSECURE_DEV_KEYS=true`
     overrides the guard; it exists for test rigs, not for production.
 
+    Only the exact literal `production` arms it, so the guard is fail-open by
+    construction — but never fail-silent. A service that comes up unguarded says
+    so as it starts: a WARN naming the value it read, or an ERROR when that
+    value was clearly reaching for production (`prod`, `prd`, `live`) without
+    hitting it. A guarded service says nothing. Check for those lines after any
+    deployment change. See
+    [The production guard](../install/configuration.md#the-production-guard).
+
+    The bootstrap credentials are the one thing `ALLOW_INSECURE_DEV_KEYS` does
+    **not** cover — see [The first
+    account](../install/configuration.md#the-first-account).
+
 ### JWT_SECRET
 
 Despite the name, sessions are **not** JWTs. A session token is 32 bytes from a
@@ -143,6 +155,21 @@ repository and therefore known to everyone.
     network. `DEMO_USER_PASSWORD` is set in `docker-compose.yml` rather than
     `.env` — editing `.env` alone leaves the demo administrator's password at
     a published value.
+
+The last of those is the odd one out, and worth understanding rather than merely
+rotating. `DEMO_USER_EMAIL` and `DEMO_USER_PASSWORD` are published *by design*:
+they are the platform's committed bootstrap identity, which is what makes a
+fresh checkout run with no configuration at all. They are read by exactly one
+thing — the `SINGLE_ORG_MODE` bootstrap — and only against an empty user table.
+
+`SINGLE_ORG_MODE` is off by default, so nothing seeds an owner unless a
+deployment asks for it. And when a deployment does ask for it under
+`DEPLOYMENT_ENV=production`, the gateway refuses to start until both values have
+moved off the ones above and the password passes the password policy. Not a
+warning, not overridable: `ALLOW_INSECURE_DEV_KEYS` lifts the key guards and
+leaves this one standing. A weak key you chose is a risk assessment; a password
+printed in a public repository is not. The full flow is [The first
+account](../install/configuration.md#the-first-account).
 
 ## Generating real values
 
@@ -238,9 +265,22 @@ still applies to the key as a whole. Note also that backups made before a
 rotation contain DEKs wrapped with the old key — the old key is only fully
 retired once those backups are gone.
 
+Both values must be 64 hex characters, the same check the services apply at
+startup, and the monolith carries the flag too
+(`java -jar tracedown-monolith-<version>-all.jar --rewrap-org-keys`). Run it
+with the services stopped, in the gap between shutting them down under the old
+key and starting them under the new one: a service still holding the old key
+cannot unwrap a DEK the re-wrap has already moved.
+
+The whole pass is one database transaction, so an interrupted run leaves the
+table exactly as it was — there is no half-rotated state to clean up. A DEK
+that unwraps under neither key is reported by organization id and the command
+exits non-zero; the orgs it did re-wrap in that same run are committed, which
+is what re-running is for.
+
 ## PLATFORM_AES_KEY cannot (yet) be fully rotated
 
-!!! danger "Re-encryption tooling covers org DEKs only. Treat the key as permanent."
+!!! danger "Re-encryption tooling covers org DEKs only — changing the key on its own orphans the rest"
     Beyond `--rewrap-org-keys` (above), no supplied command re-encrypts
     existing data under a new key. Changing `PLATFORM_AES_KEY` on an
     installation that already holds data does not migrate the rest — it
@@ -256,20 +296,68 @@ retired once those backups are gone.
 
     There is no recovery path other than restoring the old key.
 
-This is a real constraint and it is stated plainly here rather than dressed up
-with a procedure that does not exist. The practical consequences:
+This is a real constraint and its shape is stated plainly here rather than
+dressed up with a procedure that does not exist. The key rotates where the
+envelope covers it and nowhere else. The practical consequences:
 
 - **Choose the key once, before first boot.** Generate it with
   `openssl rand -hex 32` and set it everywhere before you create any data.
 - **Back it up separately from the database**, somewhere durable — a password
   manager, a secrets manager, an offline copy. See [Backup & Restore](backup.md).
-- **Treat it as permanent for the life of the installation.** If it is ever
-  exposed, the honest remedy is a new installation and re-entering the
-  variables, not a key change.
+- **A key you still hold can be replaced; a key you have lost cannot.**
+  `--rewrap-org-keys` takes the old key as an input, so it is a rotation tool
+  and not a recovery tool. Once the old key is gone there is nothing to
+  re-wrap *from*, and none of what follows is available to you.
 
-Should you need to re-key in practice, the only route is to rebuild: stand up a
-fresh installation with the new key and re-enter every variable and TOTP
-enrolment by hand. Plan as though that is not available to you.
+### Re-keying an installation that already holds data
+
+Assume you still have the old key and want off it — it leaked, or it lived
+somewhere it should not have. One class of data is handled by a command; the
+rest is manual repair, and the manual part is the reason this is planned work
+rather than an afternoon's change.
+
+| What the old key protects | After `--rewrap-org-keys` | What it takes to recover |
+|---|---|---|
+| Org DEKs, and every secret variable under them | Readable | Nothing further — the command covers it. |
+| Non-secret encrypted variables (the "Variable" type) | Unreadable | Re-enter each value by hand. You must already know it; the stored one cannot be read back. |
+| TOTP secrets | Unreadable | Clear the enrolment in the database, then the user enrols again. |
+| CA root private key | Unreadable | Re-issue the CA in the database and re-bootstrap every agent. |
+
+Pre-envelope secrets are worth a check before you start. The startup
+re-encryption pass converts old-format secrets to the envelope and logs the
+rows it cannot convert; anything it left behind is still platform-key
+ciphertext and the re-wrap does not reach it.
+
+!!! warning "The last two rows have no supported procedure"
+    There is no CLI flag, no admin endpoint and no job for either of them. What
+    follows describes what re-deriving them actually involves, so you can cost
+    it — not a supported command you can lean on.
+
+**TOTP.** A user whose secret was written under the old key cannot sign in, and
+cannot fall back to a recovery code either: the sign-in path decrypts the
+secret before it considers the recovery code, so the decryption failure comes
+first. Nor can they strip 2FA off the account themselves — disabling it
+requires proving a current code, which requires decrypting the same secret. The
+repair is a database update: clear `totp_enabled`, `totp_secret_encrypted`,
+`totp_secret_iv` and `totp_enrolled_at` on the affected `users` rows, and
+delete their `totp_recovery_codes`. They then enrol again from the Profile tab
+(see [Account](../guide/account.md#two-factor-authentication)), and an
+organization that requires 2FA will make them do it at their next sign-in.
+
+**The CA.** The gateway mints a CA only when no active one exists, and there is
+no rotation command to call — see
+[Certificate Authority](certificate-authority.md#rotation-is-make-before-break).
+An undecryptable `ca_root` row is not recognised as such: the gateway finds an
+active CA, tries to use it, and fails on the decryption, and the scheduler will
+not start at all because it cannot mint its own client certificate. Clearing
+the `ca_root` rows leaves no active CA, so the next call mints a fresh one —
+and then **every agent must be re-bootstrapped** with a new token, because both
+the certificate and the trust bundle they hold belong to a CA that no longer
+exists. Budget for touching every agent host.
+
+If that bill is larger than the installation is worth, the alternative is the
+one it has always been: a fresh installation under the new key, with the
+variables and enrolments re-entered by hand.
 
 ## Related
 
