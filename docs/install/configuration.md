@@ -57,22 +57,51 @@ Not every service uses every variable. result-ingestor connects to Redis A only.
 email-service needs no Postgres at all — it is a pure queue consumer.
 
 !!! warning "`DB_POOL_SIZE` does not apply everywhere"
-    `DB_POOL_SIZE` is read directly via `System.getenv`, not through HOCON, and
-    it only supplies the *default* pool size. Services that pass an explicit
-    pool size in code ignore it entirely: **aggregate-worker**,
-    **metrics-service** and **realtime-service** each pin 5 connections. The
-    resource-limits overlay sets `DB_POOL_SIZE` for them anyway, which is
-    misleading — changing it there has no effect. Only api-gateway,
-    probe-scheduler, result-ingestor and notification-dispatcher honour it.
+    `DB_POOL_SIZE` is read directly via `System.getenv`, not through HOCON.
+    Services that pass an explicit pool size in code ignore it entirely:
+    **aggregate-worker**, **metrics-service** and **realtime-service** each pin
+    5 connections. The resource-limits overlay sets `DB_POOL_SIZE` for them
+    anyway, which is misleading — changing it there has no effect.
 
-!!! note "Connection budget"
-    HikariCP fills to its maximum eagerly and holds the connections idle, so
-    pool sizes are a reservation, not a ceiling you might reach. A default stack
-    reserves 40 connections across the four services that honour `DB_POOL_SIZE`
-    (4 x 10) plus 15 across the three that pin 5 — 55 against a Postgres
-    configured for 100. That leaves room, but replicas multiply it: a second
-    gateway and scheduler put you at 75. Shrink `DB_POOL_SIZE` before scaling
-    out, and see [Scaling](../admin/scaling.md).
+    It is the pool size for api-gateway, result-ingestor and
+    notification-dispatcher. **probe-scheduler is the odd one**: its pool is
+    *derived* from its dispatch concurrency, and `DB_POOL_SIZE` (or
+    `SCHEDULER_DB_POOL_SIZE`) only overrides that derivation — see
+    [probe-scheduler](#probe-scheduler) below. Setting `DB_POOL_SIZE` once for
+    the whole stack therefore silently caps the scheduler at a value its workers
+    cannot live on.
+
+!!! note "Connection budget — 103 idle, against a default of 100"
+    HikariCP fills to its maximum eagerly and holds the connections idle for the
+    life of the process, so a pool size is a reservation, not a ceiling you
+    might one day reach. Budget it as spent:
+
+    | Service | Pool |
+    |---|---|
+    | api-gateway | 10 |
+    | result-ingestor | 10 |
+    | notification-dispatcher | 10 |
+    | probe-scheduler | **58** (50 dispatch workers + 8 headroom) |
+    | metrics-service | 5 |
+    | aggregate-worker | 5 |
+    | realtime-service | 5 |
+    | email-service | 0 — holds no database |
+    | **Total** | **103** |
+
+    103 is **above** PostgreSQL's default `max_connections` of 100, so a stock
+    database cannot start this stack: some services take their pools and the
+    rest fail to acquire and exit. The bundled Compose file runs Postgres with
+    `postgres -c max_connections=160` for exactly that reason — keep it if you
+    substitute your own database.
+
+    The scheduler is over half the budget on its own, and it is the pool most
+    often forgotten because it appears in no `DB_POOL_SIZE` setting. 160 leaves
+    ~57 spare for everything else that connects — a `psql` session, the
+    `pg_dump` in [Backup & Restore](../admin/backup.md), and above all replicas.
+    A second gateway plus a second scheduler adds **68**, more than the spare,
+    for 171 against 160. Raise `max_connections` before scaling out, or lower
+    `SCHEDULER_DISPATCH_WORKERS` and let the pool follow it. The full arithmetic
+    is in [Scaling](../admin/scaling.md#database-connections).
 
 ### The production guard
 
@@ -161,18 +190,56 @@ deployments should leave it off.
 | `RATE_LIMIT_GENERAL_WINDOW` | General window, seconds | `60` | No |
 | `RATE_LIMIT_AUTH_MAX` | Requests per window, auth endpoints | `15` | No |
 | `RATE_LIMIT_AUTH_WINDOW` | Auth window, seconds | `60` | No |
-| `RATE_LIMIT_TRUSTED_PROXIES` | Trusted proxy hops when deriving the client IP for rate limiting | `1` | No |
+| `TRUSTED_PROXIES` | Trusted proxy hops when deriving the client IP for rate limiting | `1` | No |
+| `API_CORS_ORIGINS` | Browser origins allowed to call the API, comma-separated | *(unset — no CORS headers)* | No — unless the dashboard is on another origin |
 
 The password minimums compose rather than replace: the length floor is `8` *and*
 within it at least one uppercase, one digit and one special character must
 appear. Auth endpoints get a tighter budget than general traffic because they
 are the ones worth brute-forcing.
 
-`RATE_LIMIT_TRUSTED_PROXIES` is how the gateway decides which
+`TRUSTED_PROXIES` is how the gateway decides which
 `X-Forwarded-For` hop is the real client. The default of `1` matches the
 single host web server the [deploy stack](deploy.md) expects in front of the
 gateway; set it to your actual proxy depth, because a wrong
 value makes rate limiting either spoofable or keyed to your proxy's address.
+
+#### Cross-origin access (`API_CORS_ORIGINS`)
+
+**Unset is the default, and it means no CORS headers are emitted at all.** The
+gateway starts normally and logs one line saying so. That is the correct answer
+for every same-origin deployment — the bundled Compose stack, the single-process
+edition, the Vite dev server's `/api` proxy — where the app and the API are
+served from one origin and no request from the dashboard is cross-origin. It is
+also the safe reading of silence: no origin gains credentialed access because a
+variable was forgotten.
+
+Set it only when the dashboard is served from a **different** origin than the
+API. It is a comma-separated list, each entry exactly `scheme://host[:port]`:
+
+```
+API_CORS_ORIGINS=https://app.example.com,https://ops.example.com
+```
+
+There is no wildcard, and there cannot be one: the dashboard sends credentials
+with every request, and a credentialed response may not answer
+`Access-Control-Allow-Origin: *`. It has to name the exact origin, which is why
+the origins are listed rather than inferred.
+
+A **configured** value is validated at startup and a malformed entry is a boot
+failure naming the offending string — a trailing slash, a path, a query, a
+userinfo part or a scheme other than `http`/`https`. Only a configured value can
+fail this way; setting nothing is never an error.
+
+!!! tip "The one line that tells you the variable is missing"
+    A cross-origin deployment that never set the variable would otherwise learn
+    about it only from a browser console. So the gateway watches for it: the
+    first request that arrives carrying an `Origin` header pointing somewhere
+    other than the host it was sent to logs a **WARN** naming both, and naming
+    `API_CORS_ORIGINS`. It is said **once** per process — a latch, not a
+    per-request warning — so grep the boot logs early. Authorities are compared,
+    not schemes, because a TLS-terminating proxy forwards plain HTTP and the
+    request's own scheme says nothing about the browser's.
 
 !!! note "Sessions are not JWTs"
     Despite the name, `JWT_SECRET` does not sign session tokens — sessions are
@@ -189,7 +256,7 @@ value makes rate limiting either spoofable or keyed to your proxy's address.
 | `URI_INVITE` | Frontend invite route, appended to `APP_URL` | `/invite` | No |
 | `URI_PASSWORD_RESET` | Frontend reset route | `/reset-password` | No |
 | `PLATFORM_AES_KEY` | 64 hex chars — encrypts secrets, signs challenges | 64 zeros | No — but change it |
-| `SINGLE_ORG_MODE` | Bootstrap a default org and user on first start — see [The first account](#the-first-account) | `false` | No |
+| `SINGLE_ORG_MODE` | Bootstrap a default org and user on first start — see [The first account](#the-first-account) | `true` | No |
 | `DEMO_USER_EMAIL` | Bootstrap user email | `admin@tracedown.dev` | No |
 | `DEMO_USER_PASSWORD` | Bootstrap user password | `Down2trace!` | No |
 | `INVITE_TTL_DAYS` | Invite token lifetime | `7` | No |
@@ -210,11 +277,13 @@ app, and `--create-org` assigns an organization to a user who already exists. So
 `SINGLE_ORG_MODE` is the only path in Tracedown that creates a user at all. It
 is the first-account flow, and nothing else is.
 
-It is **off by default**. Turned on, and only against an empty user table, the
-gateway creates a default organization and its owner from `DEMO_USER_EMAIL` and
-`DEMO_USER_PASSWORD` on start. Once that account exists the bootstrap is a no-op,
-so leaving the flag on does nothing — but turn it off anyway, and add further
-organizations with the CLI:
+It is **on by default** (`platform.conf`, `singleOrgMode = true`), because
+without it a fresh self-hosted install has no way to reach a first account at
+all. Against an empty user table the gateway creates a default organization and
+its owner from `DEMO_USER_EMAIL` and `DEMO_USER_PASSWORD` on start. Once that
+account exists the bootstrap is a no-op, so leaving the flag on does nothing
+further — but set `SINGLE_ORG_MODE=false` once you have your account, and add
+further organizations with the CLI:
 
 ```bash
 java -jar api-gateway.jar --create-org <name> --owner <email>
@@ -329,7 +398,11 @@ everything ever created. A create beyond the cap is refused with
 |---|---|---|---|
 | `REQUEST_TIMEOUT_MS` | Outbound probe request timeout | `30000` | No |
 | `MAX_RETRIES` | Maximum retries | `10` | No |
-| `MAX_REDIRECTS` | Maximum redirect hops | `10` | No |
+| `PROBE_MAX_REDIRECTS` | Maximum redirect hops | `10` | No |
+
+`PROBE_MAX_REDIRECTS` is one variable, not two: the gateway applies it when a
+script is saved and the probe-scheduler applies it when the script runs. Set it
+once for the deployment and both halves agree.
 
 #### Seed data
 
@@ -353,44 +426,15 @@ first-boot-only affair.
 
 ### Email
 
-The gateway sends transactional mail directly — invites and password resets.
+The gateway does not send mail itself. Invites and password resets are published
+onto the `email_queue` in Redis A, and **email-service** — the only process that
+opens a connection to a mail provider — renders and delivers them. So there are
+no provider settings here: configure mail once, on
+[email-service](#email-service), and every sender on the platform uses it.
 
-| Variable | Purpose | Default | Required |
-|---|---|---|---|
-| `EMAIL_PROVIDER` | One of `smtp`, `resend`, `mailgun`, `console`, `file` | `console` | No |
-| `EMAIL_FROM_ADDRESS` | Envelope from address | `noreply@tracedown.dev` | No |
-| `EMAIL_FROM_NAME` | Display name | `Tracedown` | No |
-| `EMAIL_FILE_PATH` | Output path for the `file` provider | `build/email-output.eml` | No |
-| `SMTP_HOST` | SMTP host | `localhost` | Yes, for `smtp` |
-| `SMTP_PORT` | SMTP port | `587` | No |
-| `SMTP_USERNAME` | SMTP username | *(empty)* | No |
-| `SMTP_PASSWORD` | SMTP password | *(empty)* | No |
-| `SMTP_TLS_MODE` | One of `STARTTLS`, `SMTPS`, `PLAIN` | `STARTTLS` | No |
-| `RESEND_API_KEY` | Resend API key | *(empty)* | Yes, for `resend` |
-| `MAILGUN_API_KEY` | Mailgun API key | *(empty)* | Yes, for `mailgun` |
-| `MAILGUN_DOMAIN` | Mailgun sending domain | *(empty)* | Yes, for `mailgun` |
-| `MAILGUN_REGION` | `us` or `eu` | `us` | No |
-| `EMAIL_CONSOLE_ATTACHMENT_DIR` | Where the `console` provider writes attachments | `build/email-attachments` | No |
-
-The default `console` provider prints mail to the log instead of sending it.
-That is fine until you invite someone — with `console` the invite link only
-exists in the gateway's log. The `file` provider writes only the **latest**
-email to the path, overwriting each time; it exists for tests.
-
-!!! warning "The gateway and email-service use different variable names"
-    Both services send mail, and they do **not** share provider settings. The
-    gateway reads `SMTP_*`, `RESEND_API_KEY` and `MAILGUN_*`; the email-service
-    reads `EMAIL_SMTP_*`, `EMAIL_RESEND_API_KEY` and `EMAIL_MAILGUN_*`. Setting
-    only one pair configures only one sender, and the other silently falls back
-    to `console` — mail vanishes into a log rather than erroring. If both send,
-    configure both.
-
-    The four names they *do* share — `EMAIL_PROVIDER`, `EMAIL_FROM_ADDRESS`,
-    `EMAIL_FROM_NAME` and `EMAIL_FILE_PATH` — are read by both services, so a
-    single value set in Compose applies to both at once. That is usually what
-    you want; just be aware it is not scoped — and that two of the four
-    (`EMAIL_FROM_ADDRESS` and `EMAIL_FILE_PATH`) carry **different defaults**
-    in each service when you set nothing.
+With no provider configured, email-service defaults to `console`, which prints
+mail to its log instead of sending it. That is fine until you invite someone —
+the invite link then exists only in that log.
 
 ## probe-scheduler
 
@@ -406,6 +450,7 @@ Redis A, and the agents over mutual TLS.
 | `SCHEDULER_THREAD_POOL_SIZE` | Quartz thread pool size | `10` | No |
 | `SCHEDULER_DISPATCH_QUEUE_SIZE` | Dispatch queue depth | `100000` | No |
 | `SCHEDULER_DISPATCH_WORKERS` | Concurrent in-flight dispatches | `50` | No |
+| `SCHEDULER_DB_POOL_SIZE` | Overrides the derived JDBC pool size | *(unset — derived, `58`)* | No |
 | `TRUSTED_DOMAIN_MODE` | Skip domain-ownership checks (auto-verify all) | `false` | No |
 | `PROBE_DEFAULT_TIMEOUT_MS` | Per-request timeout when a service has no override | `30000` | No |
 | `PROBE_MAX_TIMEOUT_MS` | System-wide maximum timeout | `300000` | No |
@@ -415,6 +460,20 @@ Redis A, and the agents over mutual TLS.
 `PROBE_MAX_TIMEOUT_MS` is a clamp, not a default — per-service overrides are
 capped at it, so it is the real ceiling on how long one probe can occupy a
 dispatch worker.
+
+!!! note "The scheduler's database pool is derived, not defaulted"
+    Alone in the fleet, probe-scheduler sizes its JDBC pool from its own
+    concurrency: `SCHEDULER_DISPATCH_WORKERS + 8`, so the stock **58**. Every
+    dispatch worker can want a connection at the same instant — that is what
+    "concurrent dispatches" means — and a worker that cannot get one loses the
+    probe outright rather than waiting for a slot.
+
+    `DB_POOL_SIZE`, or `SCHEDULER_DB_POOL_SIZE`, overrides the derivation. Doing
+    that alone reintroduces the defect: pin the pool below the worker count and
+    contention becomes 30-second connection timeouts and lost probes. If the
+    scheduler must be smaller, lower `SCHEDULER_DISPATCH_WORKERS` and let the
+    pool follow. It is also why a stack-wide `DB_POOL_SIZE=10` is not the safe
+    economy it looks like — see the [connection budget](#common-to-most-services).
 
 `PROBE_PAYLOAD_ENCRYPTION_ENABLED` turns nothing on. Whether a dispatch is
 sealed to the agent's certificate on top of mutual TLS is a **per-agent**
@@ -519,12 +578,13 @@ A queue-based email dispatcher. It consumes from Redis and sends — it needs
 | `EMAIL_CONSOLE_ATTACHMENT_DIR` | Where the `console` provider writes attachments | `build/email-attachments` | No |
 | `EMAIL_SERVICE_POP_TIMEOUT` | Queue pop timeout, seconds | `5` | No |
 
-Note the defaults differ from the gateway's for the same concepts:
-`EMAIL_FROM_ADDRESS` defaults to a different address, `EMAIL_SMTP_HOST` is
-empty rather than `localhost`, and `EMAIL_FILE_PATH` defaults to a different
-path (still a single overwritten file — its default yields a file literally
-named `emails`). Re-read the naming warning under [Email](#email) before
-assuming a value you set applies here.
+This is the only place mail is configured. Every other service that sends —
+the gateway's invites and password resets, the notification-dispatcher's
+alerts — hands the envelope to this one over Redis A, so a provider set here
+covers all of them and there is no second set of names to keep in step.
+
+`EMAIL_FILE_PATH` is a single file overwritten on each send (the default
+yields a file literally named `emails`); it exists for tests, not for archiving.
 
 ## metrics-service
 
