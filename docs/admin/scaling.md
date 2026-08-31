@@ -130,11 +130,33 @@ you have measured a queue building at the agent. See
 
 This is the constraint that actually bites first on a small host.
 
-HikariCP fills its pool to maximum eagerly rather than lazily. Eight JVM
-services at the default pool size of 10 therefore hold **80 connections** —
-idle, permanently — against a Postgres configured for 100. There is very little
-left for anything else, and a ninth consumer (a `psql` session, a backup job)
-can tip it over.
+HikariCP fills its pool to maximum eagerly rather than lazily, so a pool size is
+a **reservation**, not a ceiling you might one day reach. The connections are
+taken at startup and held idle for the life of the process. Budget them as
+spent:
+
+| Service | Pool | Set by |
+|---|---|---|
+| api-gateway | 10 | `DB_POOL_SIZE` |
+| result-ingestor | 10 | `DB_POOL_SIZE` |
+| notification-dispatcher | 10 | `DB_POOL_SIZE` |
+| probe-scheduler | **58** | derived from `SCHEDULER_DISPATCH_WORKERS` (50) + 8 headroom |
+| metrics-service | 5 | hard-coded |
+| aggregate-worker | 5 | hard-coded |
+| realtime-service | 5 | hard-coded |
+| email-service | 0 | holds no database |
+| **Total** | **103** | |
+
+103 is above PostgreSQL's default `max_connections` of 100, which is why the
+bundled Compose file starts the database with `postgres -c max_connections=160`
+rather than leaving the default in place. Without that, services fail to acquire
+connections and exit and the stack never reaches a healthy state.
+
+160 leaves ~57 spare, which is the budget for everything else that connects: a
+`psql` session, the `pg_dump` in [Backup & Restore](backup.md), and above all
+**extra replicas**. A second gateway and a second scheduler add 68 by
+themselves — more than the spare. Raise `max_connections` before scaling out, or
+shrink the pools first.
 
 `DB_POOL_SIZE` tunes the pool per service. But it does not apply everywhere:
 
@@ -145,17 +167,20 @@ can tip it over.
     is misleading — those values have no effect. Their pools are 5 regardless.
     Budget accordingly.
 
-### TimescaleDB and max_connections
+### Sizing the scheduler's pool
 
-If you use the TimescaleDB image, `TS_TUNE_MAX_CONNS` matters more than it
-looks. `timescaledb-tune` runs at initdb and derives `max_connections` from
-available host memory. On a small host it lands *below* what the service pools
-need, and the stack cannot boot at all — services fail to acquire connections
-and exit. The bundled compose sets `TS_TUNE_MAX_CONNS: "100"` for exactly this
-reason.
+probe-scheduler is over half the budget on its own, and it is the one pool you
+should not trim in isolation. It is derived from dispatch concurrency because
+every dispatch worker can want a connection at the same instant — that is what
+"concurrent dispatches" means — and a worker that cannot get one loses the probe
+outright rather than waiting for a slot.
 
-Because it is applied at initdb, changing it later has no effect on an existing
-data volume. See [Database & Migrations](../install/database.md).
+So if you need the scheduler smaller, lower `SCHEDULER_DISPATCH_WORKERS` and let
+the pool follow it. Pinning `DB_POOL_SIZE` below the worker count instead just
+converts contention into 30-second connection timeouts and lost probes — the
+same shortage, reported later and less clearly.
+
+See also [Database & Migrations](../install/database.md).
 
 ## The resource-limits overlay
 

@@ -19,17 +19,18 @@ The schema is plain PostgreSQL. No `CREATE EXTENSION`, no `create_hypertable`,
 nothing that ties you to a particular distribution — any stock PostgreSQL 16
 works, whether that is a container, a package, or a managed instance.
 
-!!! note "About the TimescaleDB image"
-    The Compose file pulls `timescale/timescaledb:latest-pg16`, which
-    reasonably suggests a Timescale dependency. There is none — it is a
-    convenience, and the end-to-end test stack runs plain `postgres:16-alpine`
-    against the same migrations.
+Every stack in the repository — development Compose, the deploy Compose and the
+end-to-end test stack — runs `postgres:16-alpine` against these same migrations.
 
-    If you do use the TimescaleDB image, keep `TS_TUNE_MAX_CONNS: "100"`. Its
-    tuner derives `max_connections` from host memory at first initialisation,
-    and on a small host it lands below what the service pools reserve — the
-    stack then cannot boot. The connection budget is worked through in
-    [Configuration](configuration.md#common-to-most-services).
+!!! warning "Raise `max_connections` to 160"
+    The one setting Tracedown needs that a stock PostgreSQL does not give you.
+    The service pools reserve **103** connections while idle, above PostgreSQL's
+    default of 100, and a stack that cannot get its connections does not boot —
+    services fail to acquire and exit. The bundled Compose files start the
+    database with `postgres -c max_connections=160`; a database you supply
+    yourself needs the same, set in `postgresql.conf` or on the command line.
+    The connection budget is worked through in
+    [Scaling](../admin/scaling.md#database-connections).
 
 ### Connection semantics
 

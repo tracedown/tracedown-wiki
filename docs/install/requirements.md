@@ -1,5 +1,5 @@
 ---
-description: "Host sizing, Docker, PostgreSQL 16 and Redis 7 versions needed to run self-hosted Tracedown - and why TimescaleDB is a convenience, not a dependency."
+description: "Host sizing, Docker, PostgreSQL 16 and Redis 7 versions needed to run self-hosted Tracedown - and why any stock PostgreSQL 16 will do."
 ---
 # Requirements
 
@@ -26,13 +26,18 @@ each JVM's heap and connection pool so the stack fits in roughly 8 vCPU / 7 GB.
 | Python | 3.10+ | Only to run the probe agent outside Docker. |
 | Node.js | 18+ | Only to build or run the dashboard outside Docker. |
 
-!!! note "About TimescaleDB"
-    The Compose file pulls `timescale/timescaledb:latest-pg16`, but Tracedown
-    creates no hypertables and requires no extensions — the image is a
-    convenience, not a dependency. Any stock PostgreSQL 16 works. If you do use
-    the TimescaleDB image, keep the `TS_TUNE_MAX_CONNS: "100"` setting: its
-    tuner sizes `max_connections` from host memory at first boot, and on a small
-    host it lands below what the service pools need, so the stack fails to come up.
+!!! note "Any stock PostgreSQL 16 works"
+    The Compose file pulls `postgres:16-alpine`. Tracedown creates no
+    hypertables, installs no extensions and depends on no particular
+    distribution — a container, a distro package or a managed instance are all
+    fine. See [Database & Migrations](database.md).
+
+!!! warning "`max_connections` must be at least 160"
+    The stack reserves **103** connections while idle, so the PostgreSQL default
+    of 100 is not enough and the stack will not finish booting on it. The
+    bundled Compose file raises it with `postgres -c max_connections=160`; if
+    you point Tracedown at your own PostgreSQL, raise it there instead. The
+    arithmetic is in [Scaling](../admin/scaling.md#database-connections).
 
 ## Source layout
 

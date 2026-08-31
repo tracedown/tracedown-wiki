@@ -8,21 +8,37 @@ them: standing the stack up, enrolling agents, and running in production.
 
 ## Installation and startup
 
-### The stack will not come up on a small host
+### The stack will not come up: `FATAL: sorry, too many clients already`
 
-Services start, fail to acquire database connections, and exit. Nothing reaches
-a healthy state.
+Some services start; the rest fail to acquire database connections and exit.
+Nothing reaches a healthy state. Which services survive varies between restarts,
+because it is a race for a fixed pool of connections.
 
-**Cause.** `timescaledb-tune` runs at initdb and derives `max_connections` from
-available host memory. On a small host it lands below what the connection pools
-need. Eight JVM services at the default pool size of 10 want 80 connections, and
-HikariCP fills its pool to maximum eagerly rather than on demand — so the demand
-is immediate and permanent, not gradual.
+**Cause.** `max_connections` is below what the stack reserves. It reserves
+**103** — and PostgreSQL's default is 100, so an unmodified database is already
+three short. HikariCP fills each pool to its maximum eagerly rather than on
+demand, so the demand is immediate and permanent rather than gradual, and
+probe-scheduler alone reserves 58 of the 103 (its pool is derived from its
+50 dispatch workers). See
+[Scaling](scaling.md#database-connections) for the full table.
 
-**Fix.** Set `TS_TUNE_MAX_CONNS: "100"` on the Postgres container, as the
-bundled compose does. Because it applies at initdb, it has no effect on an
-existing data volume — you need a fresh volume or a manual `max_connections`
-change. Alternatively, lower `DB_POOL_SIZE`.
+**Fix.** Start PostgreSQL with `max_connections=160`, as the bundled Compose
+file does:
+
+```yaml
+command: ["postgres", "-c", "max_connections=160"]
+```
+
+On a database you did not start from that Compose file, set it in
+`postgresql.conf` and restart — `max_connections` is not reloadable, a `SIGHUP`
+will not take. Confirm with `SHOW max_connections;` rather than assuming.
+
+If you cannot raise it, lower the demand instead: reduce
+`SCHEDULER_DISPATCH_WORKERS` on probe-scheduler (its pool follows) and
+`DB_POOL_SIZE` on the services that honour it. Do not pin `DB_POOL_SIZE` on the
+scheduler alone — a pool below the worker count turns the shortage into
+30-second connection timeouts and lost probes instead of a clean startup
+failure.
 
 !!! warning "`DB_POOL_SIZE` does not apply everywhere"
     aggregate-worker, metrics-service and realtime-service pass
@@ -30,6 +46,33 @@ change. Alternatively, lower `DB_POOL_SIZE`.
     Their pools are 5 whatever you set. Count them as 5 each when budgeting.
 
 See [Scaling](scaling.md).
+
+### Postgres will not start: `could not access file "timescaledb"`
+
+Only after upgrading from a release whose Compose file pulled
+`timescale/timescaledb:latest-pg16`. Postgres exits immediately with
+`FATAL: could not access file "timescaledb": No such file or directory`.
+
+**Cause.** That image wrote `shared_preload_libraries = 'timescaledb'` into
+`postgresql.conf` inside the data volume when the volume was first initialised.
+The setting lives in the volume, not the image, so it survives the switch to
+`postgres:16-alpine` — which does not ship the library.
+
+**Fix.** Remove the setting from the existing volume, which does not need the
+database to be running:
+
+```bash
+docker compose down
+# The Compose project is named "tracedown", so the volume is prefixed.
+# Confirm yours with: docker volume ls
+docker run --rm -v tracedown_tracedown-pgdata:/pg alpine \
+  sed -i "s/^shared_preload_libraries = 'timescaledb'/#&/" /pg/postgresql.conf
+```
+
+Then `docker compose up -d`. Nothing in the schema used the extension, so
+nothing is lost. If you would rather start clean, take a `pg_dump` first — see
+[Backup & Restore](backup.md) — and restore it into a fresh volume; the dump may
+carry a `CREATE EXTENSION timescaledb` line, which is safe to delete.
 
 ### The Docker build fails at a COPY step
 
@@ -235,24 +278,16 @@ alone.
 **Cause, the common one.** `EMAIL_PROVIDER` defaults to `console`, which only
 logs the message.
 
-**Cause, the subtle one.** The api-gateway and email-service use **different
-variable names for the same provider settings**. Configuring one leaves the
-other on `console`, so some mail sends and some does not:
+**Cause, the subtle one.** The variable is set on the wrong service.
+email-service is the only process that talks to a mail provider — the gateway
+and the notification-dispatcher publish envelopes onto the `email_queue` in
+Redis A and never open an SMTP connection of their own. Provider settings
+(`EMAIL_PROVIDER`, `EMAIL_FROM_ADDRESS`, `EMAIL_SMTP_*`, `EMAIL_RESEND_API_KEY`,
+`EMAIL_MAILGUN_*`) therefore only do anything on email-service; set on any other
+service they are ignored, and mail keeps going to a log.
 
-| Setting | api-gateway | email-service |
-|---|---|---|
-| SMTP host | `SMTP_HOST` | `EMAIL_SMTP_HOST` |
-| SMTP port | `SMTP_PORT` | `EMAIL_SMTP_PORT` |
-| SMTP username | `SMTP_USERNAME` | `EMAIL_SMTP_USERNAME` |
-| SMTP password | `SMTP_PASSWORD` | `EMAIL_SMTP_PASSWORD` |
-| SMTP TLS mode | `SMTP_TLS_MODE` | `EMAIL_SMTP_TLS_MODE` |
-| Resend API key | `RESEND_API_KEY` | `EMAIL_RESEND_API_KEY` |
-| Mailgun API key | `MAILGUN_API_KEY` | `EMAIL_MAILGUN_API_KEY` |
-| Mailgun domain | `MAILGUN_DOMAIN` | `EMAIL_MAILGUN_DOMAIN` |
-| Mailgun region | `MAILGUN_REGION` | `EMAIL_MAILGUN_REGION` |
-
-**Fix.** Set `EMAIL_PROVIDER` on both services, and configure both naming sets.
-See [Configuration](../install/configuration.md).
+**Fix.** Configure the provider on email-service and check its logs, not the
+sending service's. See [Configuration](../install/configuration.md).
 
 ### The usage window is shorter than expected
 
