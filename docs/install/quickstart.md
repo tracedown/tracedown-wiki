@@ -142,14 +142,14 @@ significance to it, and `GATEWAY_PORT` moves it.
     service an explicit `DB_POOL_SIZE`. [Scaling](../admin/scaling.md) has the
     details and the per-service numbers.
 
-!!! note "TimescaleDB is a convenience, not a dependency"
-    The Compose file pulls `timescale/timescaledb:latest-pg16`, but Tracedown
-    creates no hypertables and needs no extensions — stock PostgreSQL 16 works.
-    If you keep the TimescaleDB image, keep `TS_TUNE_MAX_CONNS: "100"` with it.
-    Its tuner derives `max_connections` from host memory at initdb, and on a
-    small host it lands below what the pools need (55 connections at the
-    defaults — see [Configuration](configuration.md#common-to-most-services)),
-    so the stack cannot finish booting.
+!!! note "Plain PostgreSQL, but not a plain `max_connections`"
+    The Compose file pulls `postgres:16-alpine` — Tracedown creates no
+    hypertables and needs no extensions, so any stock PostgreSQL 16 works. What
+    it does need is headroom: the stack reserves **103** connections while idle,
+    above PostgreSQL's default of 100, which is why the Compose file starts it
+    with `postgres -c max_connections=160`. Keep that if you substitute your own
+    database, or the stack will not finish booting. The per-service numbers are
+    in [Scaling](../admin/scaling.md#database-connections).
 
 ## 2. Log in
 
@@ -257,9 +257,9 @@ them.)
     set `APP_URL` to match or your users will receive links to a host that does
     not exist. See [Configuration](configuration.md).
 
-The Compose stack sets `EMAIL_PROVIDER=console` for both the gateway and
-email-service, so no mail leaves the machine — emails are written to the
-container logs. That makes the invite and reset flows testable offline; wiring a
+The Compose stack sets `EMAIL_PROVIDER=console` on email-service — the one
+process that sends mail — so nothing leaves the machine: emails are written to
+that container's logs. That makes the invite and reset flows testable offline; wiring a
 real provider is covered in [Configuration](configuration.md).
 
 ## 5. Verify it works
