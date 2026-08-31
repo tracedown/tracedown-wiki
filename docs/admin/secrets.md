@@ -104,17 +104,11 @@ sessions means deleting session rows (each user can do this from
 ### Database and provider credentials
 
 `DATABASE_PASSWORD` authenticates to PostgreSQL. The remaining credentials are
-ordinary provider secrets, but note that the two mail-sending services use
-different variable names for the same underlying thing:
-
-| Purpose | api-gateway | email-service |
-|---|---|---|
-| Resend API key | `RESEND_API_KEY` | `EMAIL_RESEND_API_KEY` |
-| Mailgun API key | `MAILGUN_API_KEY` | `EMAIL_MAILGUN_API_KEY` |
-| SMTP password | `SMTP_PASSWORD` | `EMAIL_SMTP_PASSWORD` |
-
-Setting the gateway's name on the email-service (or the reverse) leaves the
-provider unconfigured, and mail fails at send time rather than at boot.
+ordinary provider secrets. Mail credentials — `EMAIL_SMTP_PASSWORD`,
+`EMAIL_RESEND_API_KEY`, `EMAIL_MAILGUN_API_KEY` — belong to **email-service**
+only; it is the one process that opens a connection to a mail provider, and
+every other service hands it envelopes over Redis A. Set on any other service
+they are ignored, and mail keeps going to a log rather than failing at boot.
 
 Body object storage is likewise split by consumer, because the components talk
 to the store for different reasons — the agent writes bodies, the
