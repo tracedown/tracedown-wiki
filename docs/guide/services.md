@@ -154,6 +154,19 @@ only to pin the service to exactly those: a probe of an internal service that is
 only routable from one network, or a check whose whole purpose is measuring from
 a particular region.
 
+If a dispatch fails before the probe can start — the agent cannot be reached, or
+it turns the job away — the run moves to the next eligible agent rather than
+being lost, for up to three attempts inside a twenty-second window. Restricting
+a service to one agent gives that up: when that agent will not take the job, the
+run is recorded as `skipped` instead.
+
+A dispatch that fails *after* the agent has taken the job is never retried, and
+you would not want it to be. The agent may already have called your API, and
+re-running would mean a second POST, a second delete, a second of whatever the
+script does. Such a run is recorded as it stands: `error` when the agent
+answered with a fault, `timeout` when it never answered at all. See
+[Reading Results](results.md#what-a-status-means).
+
 !!! note "Agent selection saves on its own"
     The agent picker writes immediately when you add or remove an agent — it is
     not part of the form's Save, and Cancel will not undo it.

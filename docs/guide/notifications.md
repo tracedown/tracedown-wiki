@@ -214,8 +214,11 @@ These are not authored in any script — Tracedown emits them itself.
 | Type | Meaning |
 |---|---|
 | `dispatch_capacity` | Probes are being skipped; the platform is over its probing capacity. |
+| `no_eligible_agent` | Probes are being skipped because no healthy agent was available to run them. |
+| `agent_dispatch_failed` | The agents looked healthy, and every one of them refused the probe or could not be reached. |
 | `agent_down` | A probe agent is not responding to health checks. |
 | `agent_degraded` | A probe agent is responding, but its health check is slow. |
+| `health_token_unavailable` | Agent health checks cannot complete, so agent statuses are being held where they are. |
 
 These matter because they describe gaps in your monitoring rather than problems
 with your APIs. A skipped probe is a check that never ran; see

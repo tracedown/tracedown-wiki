@@ -74,6 +74,15 @@ dependency set. Nothing here calls anything else here over HTTP.
 | realtime-service | WebSocket fan-out | 20870 | Postgres, Redis A |
 | probe agent | Executes Lace scripts | 8443 | scheduler (inbound) |
 
+Every one of those ports answers `GET /ping` (liveness — static, touches
+nothing) and `GET /health` (readiness — borrows and validates a database
+connection, pings Redis). The queue consumers and the job runner included: they
+were always Ktor servers, they simply had no routes. schema-migrator is the
+exception, being a one-shot job with no server at all. Which dependencies a
+service treats as required and which merely degrade it differs per service —
+[Monitoring Tracedown](../admin/observability.md#health-endpoints) has the
+table.
+
 A few of these rows are worth unpacking.
 
 **schema-migrator** exists as a separate service rather than as startup logic
@@ -104,8 +113,11 @@ without them rather than silently falling back to a localhost that isn't there.
 realtime services publish on 127.0.0.1, and a web server on the host routes by
 path: `/api/` and `/ping` to the gateway, `/metrics/` to metrics-service, and
 `/ws` to realtime-service with the WebSocket upgrade and a 24-hour read
-timeout. Ready-made `nginx.conf` and `apache.conf` files ship with the
-[Production Deploy](deploy.md) stack; TLS termination happens there too.
+timeout. Three named paths under `/internal/` also go to the gateway — agent
+registration, certificate renewal and the health-challenge token endpoint —
+which is what lets an agent on another host enrol and stay healthy over https.
+Ready-made `nginx.conf` and `apache.conf` files ship with the [Production
+Deploy](deploy.md) stack; TLS termination happens there too.
 
 `tracedown-core-common` is a shared library — models, config, Redis and storage
 helpers — not a deployable service. It never appears in a process list.
@@ -148,7 +160,9 @@ or a table.
    enqueue in microseconds instead of starving the Quartz thread pool.
 4. **A dispatch worker POSTs `/probe`** to the chosen agent over mutual TLS,
    carrying the script, resolved variables, and any stored values from the
-   previous run.
+   previous run. A dispatch that fails before the probe can start moves to the
+   next eligible agent; one that fails after the agent has taken the job does
+   not, because the target may already have been called.
 5. **The agent executes the Lace script** against your API and returns raw
    ProbeResult JSON. The agent is stateless — it holds no schedule, no history,
    and no database.
@@ -156,7 +170,8 @@ or a table.
    Its job ends there; it never writes probe results itself.
 7. **result-ingestor BRPOPs the result** and, in a single transaction, persists
    `probe_results` and `probe_steps`, updates `services.last_status`, and writes
-   `outbox` rows.
+   `outbox` rows. A run that never reached an agent is persisted as `skipped`
+   instead: it is history only, changing no status and writing no outbox row.
 8. **notification-dispatcher consumes the outbox**, evaluates silences and
    quiet hours, and delivers email (via the Redis A email queue) and webhooks.
    (Maintenance windows never reach this stage — the scheduler suppresses
@@ -213,6 +228,13 @@ internal CA; agents generate an RSA-4096 keypair, submit a CSR using a one-time
 bootstrap token, and hold a CA-signed certificate afterwards. The scheduler
 generates an ephemeral client certificate from the same CA at startup, so both
 ends of a dispatch present certificates and neither trusts anything else.
+
+The one request that predates all of it is the CSR itself, which carries the
+token and receives the CA bundle the agent then pins. The agent authenticates
+the gateway on that request too — against the system trust store, or a CA bundle
+or certificate fingerprint you give it out of band — and refuses to send the
+token if it cannot. See [Authenticating the gateway at
+enrolment](agents.md#authenticating-the-gateway-at-enrolment).
 
 The direction matters for your network design: **the scheduler dials the
 agent.** Agents do not poll for work. An agent must therefore be reachable

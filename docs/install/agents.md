@@ -67,12 +67,17 @@ and route to, that URI is wrong and nothing will reach it.
 ## Configuration
 
 Every setting is read from the environment by pydantic-settings with the
-`PROBE_AGENT_` prefix.
+`PROBE_AGENT_` prefix. The deployment environment is the one exception: it
+answers to its unprefixed, platform-wide name as well.
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `PROBE_AGENT_BOOTSTRAP_TOKEN` | One-time token from `--agent-bootstrap` | `""` |
 | `PROBE_AGENT_SCHEDULER_URL` | Base URL for registration and renewal | `""` |
+| `PROBE_AGENT_BOOTSTRAP_CA_BUNDLE` | PEM bundle of the CA that issued the gateway's certificate, used to authenticate it at enrolment | `""` |
+| `PROBE_AGENT_BOOTSTRAP_PIN_SHA256` | SHA-256 fingerprint(s) of the certificate the gateway presents, pinned at enrolment; takes precedence over the bundle | `""` |
+| `PROBE_AGENT_INSECURE_SKIP_BOOTSTRAP_TLS_VERIFY` | Skips verification of the gateway's certificate at enrolment; refused in production | `false` |
+| `PROBE_AGENT_DEPLOYMENT_ENV` | Deployment environment; `production` refuses unauthenticated enrolment. Read unprefixed as `DEPLOYMENT_ENV` too | `dev` |
 | `PROBE_AGENT_CA_CERT_PATH` | CA trust bundle written at bootstrap | `/certs/ca.pem` |
 | `PROBE_AGENT_CERT_PATH` | Signed agent certificate | `/certs/agent.pem` |
 | `PROBE_AGENT_KEY_PATH` | Agent private key | `/certs/agent-key.pem` |
@@ -99,7 +104,8 @@ Every setting is read from the environment by pydantic-settings with the
     **api-gateway** on `/internal/agents/register` and `/internal/agents/renew`,
     so the value in practice is the gateway's base URL — in the Compose stack,
     `http://tracedown-gateway:20714`. Point it at the scheduler and bootstrap
-    fails.
+    fails. The scheme matters as much as the host — see [Authenticating the
+    gateway at enrolment](#authenticating-the-gateway-at-enrolment).
 
 ### Why `MAX_CONCURRENCY` defaults to 256
 
@@ -127,10 +133,13 @@ and the certificate and key files do not already exist, the agent:
    leaves the agent — only the CSR does.
 3. Builds a PKCS#10 CSR with subject `O=tracedown-agent`.
 4. Determines its own URI as `https://{socket.getfqdn()}:{port}`.
-5. POSTs `{bootstrapToken, csrPem, agentUri}` to
-   `{scheduler_url}/internal/agents/register`, with a 30-second timeout and TLS
-   verification disabled — at this moment the agent has no CA to verify against,
-   which is exactly what it is asking for. Run this over a trusted network.
+5. Authenticates the gateway, then POSTs `{bootstrapToken, csrPem, agentUri}` to
+   `{scheduler_url}/internal/agents/register` with a 30-second timeout. Over
+   `https://` the gateway's certificate is verified against the system trust
+   store by default; a private CA or a self-signed certificate takes one
+   variable. Nothing is sent to a peer the agent could not authenticate — see
+   [Authenticating the gateway at
+   enrolment](#authenticating-the-gateway-at-enrolment).
 6. Writes the returned `certificatePem` to `cert_path`, `caRootPem` to
    `ca_cert_path`, and the assigned `slug` to `slug_path`.
 7. Records SHA-256 fingerprints of the received CA bundle in `ca_pins_path`.
@@ -149,6 +158,146 @@ leave `PROBE_AGENT_BOOTSTRAP_TOKEN` in the environment forever, restart as often
 as you like, and the agent will not re-register — as long as `/certs` is on a
 volume that survives the restart. If it is not, every restart needs a fresh
 token, because tokens are single-use.
+
+### Authenticating the gateway at enrolment
+
+Registration is the agent's only unauthenticated moment, and it is the one that
+matters most: that single POST carries the bootstrap token *and* receives the CA
+bundle the agent pins for the rest of its life. Whoever answers it owns the agent
+from then on — an on-path attacker reads the token and installs a CA of their
+own. So the agent authenticates the gateway before the token leaves the process,
+and a configuration that cannot authenticate it fails registration rather than
+sending the token anyway.
+
+Over `https://` there are three ways to do that, in order of preference:
+
+| Situation | What to set |
+|---|---|
+| Gateway behind a publicly trusted certificate (certbot, a managed edge) | Nothing — the system trust store is the default |
+| Gateway behind a private or internal CA | `PROBE_AGENT_BOOTSTRAP_CA_BUNDLE=/path/to/ca.pem` |
+| Gateway certificate chains to nothing (self-signed) | `PROBE_AGENT_BOOTSTRAP_PIN_SHA256=<fingerprint>` |
+| Local development only | `PROBE_AGENT_INSECURE_SKIP_BOOTSTRAP_TLS_VERIFY=true` |
+
+Take the fingerprint from whoever runs the gateway, the same way you take the
+bootstrap token — both have to reach you out of band anyway:
+
+```bash
+openssl s_client -connect tracedown.example.com:443 </dev/null 2>/dev/null \
+  | openssl x509 -noout -fingerprint -sha256
+```
+
+Colons, a `sha256:` prefix, and several comma- or space-separated values are all
+accepted. The agent opens one throwaway handshake to read the certificate the
+gateway presents, refuses to go any further unless it matches a pin, and then
+makes the registration request trusting that certificate and nothing else — so
+there is no gap between checking and using. A malformed pin fails before a
+connection is opened at all, and a pin wins over a CA bundle when both are set.
+
+`PROBE_AGENT_INSECURE_SKIP_BOOTSTRAP_TLS_VERIFY` is the only way to reach an
+unverified connection — nothing else in the agent can — and it logs a warning
+every time it is used.
+
+!!! warning "A plain `http://` gateway URL sends the token in the clear"
+    There is no transport to authenticate: the bootstrap token crosses the wire
+    unencrypted, and so does the CA bundle coming back. This is what every
+    shipped stack does — `bootstrap-agent.sh`, the dashboard's connect command
+    and the installer all set
+    `PROBE_AGENT_SCHEDULER_URL=http://tracedown-gateway:20714` — because there
+    the agent and the gateway share a private Docker network. That is the only
+    setting in which it is acceptable, and the agent logs a warning each time.
+    On any path you do not control, enrol over `https://`.
+
+Both the opt-out and plain `http://` are **refused when
+`DEPLOYMENT_ENV=production`**: registration raises and the agent does not come
+up. Only that exact value arms the guard — anything else, unset included, counts
+as development, and the agent's own default is `dev`. It is read unprefixed as
+well as as `PROBE_AGENT_DEPLOYMENT_ENV`, so a stack that already sets it
+platform-wide needs nothing extra; note that agents run as their own containers,
+so the [deploy stack](deploy.md)'s `.env` does not reach them unless you pass it.
+
+#### Reaching enrolment over https
+
+`/internal/agents/register` and `/internal/agents/renew` are mounted at the
+**gateway root**, not under `/api/`, so a proxy that only forwards `/api/` lands
+an agent's registration on the SPA fallback and answers it with the dashboard's
+`index.html`.
+
+The `nginx.conf` and `apache.conf` shipped in `docker/deploy/` proxy them, so an
+agent pointed at your public `https://tracedown.example.com` enrols with nothing
+further to configure. Three paths are published, one rule each:
+
+| Path | Why it is reachable from outside |
+|---|---|
+| `/internal/agents/register` | Carries a single-use bootstrap token you issued, valid for an hour. Being reachable is the whole point of an enrolment endpoint. |
+| `/internal/agents/renew` | Gated on proof of possession of the agent's existing private key, not on a token. |
+| `/internal/health/token/{challengeId}` | Returns a 32-byte token with a 30-second TTL, under an unguessable challenge id the scheduler minted and handed to one named agent over mTLS. The token means something only to the scheduler that issued it, against that one agent's challenge. |
+
+What TLS adds on top is the confidentiality and the peer authentication the
+bootstrap token cannot provide for itself.
+
+The third path is there because a remote agent has to fetch its health-challenge
+token from the gateway, and it fetches it from whatever URL the scheduler puts in
+the challenge — which is `GATEWAY_URL` plus that path. For an agent off the
+Docker network, `GATEWAY_URL` therefore has to be the public https URL, not the
+internal one the shipped `.env.example` sets.
+
+Leave it internal and the failure is quiet and misdirected: enrolment succeeds,
+the agent appears in the UI, and then every challenge fails on a URL only the
+scheduler can resolve. Because the scheduler *can* reach it, the round is not
+excused as inconclusive — it counts against the agent, and the agent is marked
+down (`agent_down`) after two of them. See [Agent
+health](../admin/observability.md#agent-health).
+
+!!! warning "Do not replace those rules with an `/internal/` catch-all"
+    The shipped configs list the three paths one at a time on purpose.
+    Everything else the gateway serves under `/internal/` is for the internal
+    Docker network, and a future addition there would be published to the
+    internet by an over-broad rule rather than by a deliberate decision in your
+    vhost.
+
+If your own reverse proxy predates these rules, or you wrote it by hand, copy
+them across:
+
+=== "nginx"
+
+    ```nginx
+    location = /internal/agents/register {
+        proxy_pass http://127.0.0.1:20714;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /internal/agents/renew {
+        proxy_pass http://127.0.0.1:20714;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # ^~ so this prefix wins over the SPA fallback without regex locations
+    # getting a look in. The trailing segment is the challenge id.
+    location ^~ /internal/health/token/ {
+        proxy_pass http://127.0.0.1:20714;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    ```
+
+=== "Apache"
+
+    ```apache
+    ProxyPass        /internal/agents/register http://127.0.0.1:20714/internal/agents/register
+    ProxyPassReverse /internal/agents/register http://127.0.0.1:20714/internal/agents/register
+    ProxyPass        /internal/agents/renew http://127.0.0.1:20714/internal/agents/renew
+    ProxyPassReverse /internal/agents/renew http://127.0.0.1:20714/internal/agents/renew
+    ProxyPass        /internal/health/token/ http://127.0.0.1:20714/internal/health/token/
+    ProxyPassReverse /internal/health/token/ http://127.0.0.1:20714/internal/health/token/
+    ```
 
 ### Creating a bootstrap token
 
@@ -296,7 +445,9 @@ a challenge ID and a one-time token, stores the token in Redis with a 30-second
 TTL, and POSTs `{challenge_id, token_url}` to the agent. The agent then **runs a
 real Lace script** to fetch the token from the gateway and returns whatever it
 got back. The scheduler compares it against what it stored and records `pass`,
-`fail`, `wrong_token`, or `timeout` (10-second budget).
+`fail`, `wrong_token`, `timeout` (10-second budget), or `inconclusive` — the
+last when the round could not be completed for reasons that are the platform's
+rather than the agent's.
 
 That round trip exercises the entire path an actual probe uses: the executor
 loads and runs, DNS and TCP and HTTP work outbound, the response body is parsed
@@ -312,10 +463,14 @@ the same instant queues behind the fleet-wide burst and reports a latency that
 reflects the burst rather than the agent. Measuring at :30 keeps the signal
 clean.
 
-A round trip over **500 ms** on an otherwise passing challenge marks the agent
-degraded and raises an alert; a non-passing result raises an agent-down alert.
-Results are also written to the agent health history and pushed live to the
-dashboard.
+**Two consecutive** non-passing rounds mark the agent failed and raise an
+agent-down alert. One is treated as a blip and changes nothing, and a single
+pass puts a failed agent straight back into rotation. A round trip over
+**1200 ms** on an otherwise passing challenge marks the agent degraded and
+raises an alert of its own. Results are also written to the agent health history
+and pushed live to the dashboard. What each result means, and when a round is
+discounted as inconclusive, is covered in [Monitoring
+Tracedown](../admin/observability.md#agent-health).
 
 ## Removing an agent
 
@@ -342,8 +497,9 @@ the same action.
 A service can restrict itself to a subset of agents — useful when a probe must
 originate from a particular network or region. If a service names no agents,
 every active, healthy agent is eligible for it. Selection strategy
-(consecutive, simultaneous, or random) is a per-service setting; see
-[Services](../guide/services.md).
+(consecutive, simultaneous, or random) is a per-service setting, as is what
+happens when the chosen agent will not take the job; see
+[Services](../guide/services.md#probe-agents).
 
 ## Body storage
 

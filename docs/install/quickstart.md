@@ -116,9 +116,10 @@ The Compose file reads `docker/.env`, which you created above from the shipped
 | `REDIS_A_URL` / `REDIS_B_URL` / `REDIS_C_URL` | all `redis://tracedown-redis-a:6379` | One instance, three roles. |
 
 Two of these deserve explanation. `PLATFORM_AES_KEY` is the key your encrypted
-variables are written under; change it after data exists and that data becomes
-unreadable, which is why it belongs in [Secrets](../admin/secrets.md) rather
-than in a hurried edit later. And the three Redis URLs all pointing at one
+variables are written under; change it after data exists and that data stops
+being readable — only the org data-encryption keys can be moved onto a new key
+afterwards, and only with the old key in hand — which is why it belongs in
+[Secrets](../admin/secrets.md) rather than in a hurried edit later. And the three Redis URLs all pointing at one
 instance is the intended default — the role split between operational,
 cache, and hierarchy-cache Redis lives at the URL layer, so a single instance
 serves all three until your volume justifies splitting them.
@@ -152,19 +153,26 @@ significance to it, and `GATEWAY_PORT` moves it.
 
 ## 2. Log in
 
-With `SINGLE_ORG_MODE=true` — the default, and what Compose sets — the gateway
-bootstraps a default organization and a demo user the first time it starts
-against an empty database.
+`SINGLE_ORG_MODE=true` makes the gateway bootstrap a default organization and a
+demo user the first time it starts against an empty database. It is **off by
+default**; this Compose file sets it explicitly, which is why the local stack
+gives you an account without being asked.
 
 | Setting | Default |
 |---|---|
 | `DEMO_USER_EMAIL` | `admin@tracedown.dev` |
 | `DEMO_USER_PASSWORD` | `Down2trace!` |
 
+This is the only path in Tracedown that creates a user — everyone after the
+first is invited from inside the app — so it is also how a production install
+gets its first owner. There it works differently, and deliberately so: see
+[The first account](configuration.md#the-first-account).
+
 !!! danger "Change these before anyone else can reach the host"
     These credentials are published in this documentation and in the source.
     Override both variables before first start, or change the password
-    immediately after logging in.
+    immediately after logging in. With `DEPLOYMENT_ENV=production` the gateway
+    will not start on them at all.
 
 ## 3. Enrol a probe agent
 
@@ -257,9 +265,17 @@ real provider is covered in [Configuration](configuration.md).
 ## 5. Verify it works
 
 ```bash
-curl http://localhost:20714/ping
+curl http://localhost:20714/ping     # liveness — the process is serving
+curl http://localhost:20714/health   # readiness — its database and Redis answer
 docker compose ps
 ```
+
+Every service answers both on its own port, and `/health` is the one that tells
+you *why* something is wrong — but only the three ports above are published, so
+reach the rest from inside the network
+(`docker compose exec tracedown-ingestor wget -qO- http://localhost:20820/health`).
+[Monitoring Tracedown](../admin/observability.md#health-endpoints) lists the
+ports and what each service checks.
 
 Every application service should be `running`, and `tracedown-migrator` and
 `tracedown-ca-init` should show as exited — those two are meant to run once and

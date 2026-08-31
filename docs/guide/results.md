@@ -77,16 +77,59 @@ response time, a relative timestamp, and the slug of the agent that ran it.
 
 The agent slug is worth attention. If one agent's runs fail while another's
 succeed against the same service, you are looking at a network path or agent
-problem, not a broken API.
+problem, not a broken API. The slug recorded is the agent that actually ran the
+probe, which is not always the one the rotation picked — see
+[Services](services.md#probe-agents).
+
+### What a status means
+
+Five statuses appear in the history. Three of them describe your API; two
+describe Tracedown.
+
+| Status | Meaning |
+|---|---|
+| `success` | The script ran and every hard assertion held. |
+| `failure` | The script ran and something it asserted did not hold. |
+| `timeout` | The run did not finish inside its budget — either the script's own timeout fired, or the agent held the job and never answered. |
+| `error` | The check could not be evaluated at all. |
+| `skipped` | The check never ran. |
+
+`failure`, `timeout` and `error` all count against your success rate: in each of
+them the run was owed an answer about your API and did not come back with a good
+one. `skipped` counts in neither direction — it is excluded from the success
+rate, from the header stats, and from the hourly and daily aggregates behind the
+Statistics tab.
+
+### Errored probes
+
+A status of `error` means the run did not evaluate. The script failed to run,
+the executor raised, or the agent that took the job broke while running it and
+answered with a diagnostic instead of a result. The run is stored like any
+other; because there are usually no calls to show, the message explaining it is
+on the **Raw result** tab.
+
+An errored run moves the service's last status, because a check that did not
+evaluate is not a check that passed. It is deliberately not treated as the
+service's last *result*: the next run is not handed an error as its previous
+run, so `prev` in your script always refers to a real result.
+
+!!! note "Errors are not counted in the failure bars"
+    The history colours an errored run like a failure and it drags the success
+    rate down, but the header chart's failure bars count `failure` and `timeout`
+    only. An error is not something your API did, so it is not drawn as one —
+    which is why the bars can look short while the success rate is low.
 
 ### Skipped probes
 
-A probe with a status of `skipped` shows a banner explaining what happened.
+A probe with a status of `skipped` was never handed to an agent at all. The
+detail pane shows a banner, and the exact reason is recorded on the **Raw
+result** tab.
 
-| Reason | What you see |
+| Reason | What happened |
 |---|---|
-| `dispatch_queue_full`, `dispatch_backlog` | The scheduler's dispatch queue was full — the platform is over its probing capacity. |
-| Anything else | The probe was never dispatched to an agent. |
+| `dispatch_queue_full`, `dispatch_backlog` | The scheduler's dispatch queue was full, or this service's previous tick was still waiting in it — the platform is over its probing capacity. |
+| `no_eligible_agent` | No agent was available to run the service: none is passing its health challenge, or none that the service is restricted to is. |
+| `agent_unreachable`, `agent_rejected` | Agents were available and every one of them was tried; none could be reached, or all of them turned the job away. |
 
 !!! warning "Skipped is not the same as failed"
     A skipped probe means Tracedown could not run the check. It says nothing
@@ -95,8 +138,8 @@ A probe with a status of `skipped` shows a banner explaining what happened.
     them as successes will hide a monitoring outage. They are a signal about
     your Tracedown deployment — capacity, agents, scheduling — and they are
     reported separately for that reason. See
-    [Notifications](notifications.md) for the capacity alerts the platform
-    raises on your behalf.
+    [Notifications](notifications.md) for the alerts the platform raises on your
+    behalf when they start appearing.
 
 ## Result detail
 

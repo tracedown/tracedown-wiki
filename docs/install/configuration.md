@@ -81,13 +81,47 @@ email-service needs no Postgres at all — it is a pure queue consumer.
 | `DEPLOYMENT_ENV` | Deployment environment name; `production` arms the startup guard | `dev` | No — but set it in production |
 | `ALLOW_INSECURE_DEV_KEYS` | Disables the guard even in production | *(unset)* | No |
 
-With `DEPLOYMENT_ENV=production`, the api-gateway, probe-scheduler and
-email-service refuse to start on published development secrets — the all-zero
-`PLATFORM_AES_KEY`, the default `JWT_SECRET`, the seeded demo admin, the
-`console` email provider. This is the single most important production setting
-on this page: it converts "you forgot to change a secret" from a silent
-liability into a startup failure. `ALLOW_INSECURE_DEV_KEYS=true` switches the
-guard off; it exists for test rigs.
+With `DEPLOYMENT_ENV=production`, four services refuse to start on published
+development secrets. This is the single most important production setting on
+this page: it converts "you forgot to change a secret" from a silent liability
+into a startup failure.
+
+| Service | What it refuses in production |
+|---|---|
+| api-gateway | The all-zero `PLATFORM_AES_KEY`, the default `JWT_SECRET` |
+| probe-scheduler | The all-zero `PLATFORM_AES_KEY` |
+| notification-dispatcher | The all-zero `PLATFORM_AES_KEY` |
+| email-service | `EMAIL_PROVIDER` unset or `console` — the dev transport logs reset links and invite tokens instead of sending them |
+
+`ALLOW_INSECURE_DEV_KEYS=true` switches those guards off; it exists for test
+rigs, and it logs a warning naming itself on every start.
+
+!!! warning "Only the exact string `production` arms the guard"
+    The value is trimmed and lowercased before the comparison, so `PRODUCTION`
+    and `  production  ` are fine. Everything else is not: `prod`, `prod-eu`,
+    `staging`, a typo, or an unset variable all leave every guard disarmed and
+    the service running on whatever secrets it was given.
+
+    Because that failure is silent by construction, every service that comes up
+    **unguarded** says so at startup — including the ones with no insecure
+    defaults of their own, so the report is uniform across the fleet:
+
+    - A value that is not `production` logs a **WARN** naming the value it
+      read and stating that the guards are not armed.
+    - A value that was clearly reaching for production — anything beginning
+      `prod` or `prd`, plus exactly `live` — logs an **ERROR** instead, naming
+      the literal you have to set. A near-miss is a typo with security
+      consequences, not an ordinary dev run.
+    - `production` with `ALLOW_INSECURE_DEV_KEYS` set logs an **ERROR** saying
+      the guards are disabled and which dev defaults are still in place.
+
+    A correctly guarded service says nothing, which is the one case that needs
+    no attention. Grep your boot logs for `DEPLOYMENT_ENV` after any deployment
+    change: silence across the fleet is the answer you want.
+
+The bootstrap credentials are guarded **separately** and more strictly — see
+[the first account](#the-first-account) below. `ALLOW_INSECURE_DEV_KEYS` does
+not lift that one.
 
 ## api-gateway
 
@@ -155,7 +189,7 @@ value makes rate limiting either spoofable or keyed to your proxy's address.
 | `URI_INVITE` | Frontend invite route, appended to `APP_URL` | `/invite` | No |
 | `URI_PASSWORD_RESET` | Frontend reset route | `/reset-password` | No |
 | `PLATFORM_AES_KEY` | 64 hex chars — encrypts secrets, signs challenges | 64 zeros | No — but change it |
-| `SINGLE_ORG_MODE` | Bootstrap a default org and user on first start | `true` | No |
+| `SINGLE_ORG_MODE` | Bootstrap a default org and user on first start — see [The first account](#the-first-account) | `false` | No |
 | `DEMO_USER_EMAIL` | Bootstrap user email | `admin@tracedown.dev` | No |
 | `DEMO_USER_PASSWORD` | Bootstrap user password | `Down2trace!` | No |
 | `INVITE_TTL_DAYS` | Invite token lifetime | `7` | No |
@@ -169,12 +203,43 @@ value makes rate limiting either spoofable or keyed to your proxy's address.
 outgoing email, so it must be the URL a browser can reach — not an internal
 container hostname — or your invites will land as dead links.
 
-!!! warning "The demo credentials are published defaults"
-    With `SINGLE_ORG_MODE=true` the gateway creates an org and a user with the
-    values above on first start. They are documented, and therefore public.
-    Override both before first boot, or log in and change the password
-    immediately after. The bootstrap only fires when the database is empty, so
-    changing them later does not retroactively fix an account already created.
+#### The first account
+
+Tracedown is invite-only: every user after the first is invited from inside the
+app, and `--create-org` assigns an organization to a user who already exists. So
+`SINGLE_ORG_MODE` is the only path in Tracedown that creates a user at all. It
+is the first-account flow, and nothing else is.
+
+It is **off by default**. Turned on, and only against an empty user table, the
+gateway creates a default organization and its owner from `DEMO_USER_EMAIL` and
+`DEMO_USER_PASSWORD` on start. Once that account exists the bootstrap is a no-op,
+so leaving the flag on does nothing — but turn it off anyway, and add further
+organizations with the CLI:
+
+```bash
+java -jar api-gateway.jar --create-org <name> --owner <email>
+```
+
+The defaults `admin@tracedown.dev` / `Down2trace!` ship in `platform.conf` on
+purpose: they are what makes a fresh checkout or a demo instance run with no
+setup at all. They are also, being committed, known to everyone.
+
+!!! danger "Production refuses to bootstrap on the published credentials"
+    With `DEPLOYMENT_ENV=production` and `SINGLE_ORG_MODE=true`, the gateway
+    **refuses to start** unless *both* `DEMO_USER_EMAIL` and
+    `DEMO_USER_PASSWORD` have been moved off their published values **and** the
+    password passes the [password policy](#security) above. The startup error
+    names each thing that is wrong.
+
+    There is no override. `ALLOW_INSECURE_DEV_KEYS` lifts the
+    [production guard](#the-production-guard); it does not lift this. A weak key
+    is a risk assessment — a password printed in a public repository is not.
+
+    The flag is not banned outright in production because it is the only way to
+    create the first account; binding the refusal to the credentials closes the
+    hole the flag actually opens, and leaves the account you do need reachable.
+    When the credentials are real, the gateway logs a warning that the owner is
+    about to be created and starts normally.
 
 #### Domain trust
 
