@@ -14,8 +14,6 @@ longer than usual"*. Probes are written in [Lace](https://lacelang.dev), a
 purpose-built scripting language — not YAML with an `if` bolted on, and not a
 general-purpose runtime you have to sandbox.
 
-You run the whole thing on your own infrastructure, and it does not phone home.
-
 Want to click around before installing anything? A read-only
 **[live demo](https://demo.tracedown.dev)** is running with real probes against
 real endpoints — no signup, it logs you straight in.
