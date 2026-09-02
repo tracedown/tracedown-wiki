@@ -1,5 +1,5 @@
 ---
-description: "Host sizing, Docker, PostgreSQL 16 and Redis 7 versions needed to run self-hosted Tracedown - and why any stock PostgreSQL 16 will do."
+description: "Host sizing, Docker, PostgreSQL 18 and Redis 7 versions needed to run self-hosted Tracedown - and why any stock PostgreSQL 18 will do."
 ---
 # Requirements
 
@@ -20,14 +20,14 @@ each JVM's heap and connection pool so the stack fits in roughly 8 vCPU / 7 GB.
 | Component | Version | Notes |
 |---|---|---|
 | Docker Engine | 24+ | With the Compose plugin (`docker compose`, not `docker-compose`). |
-| PostgreSQL | 16 | Supplied by the stack. **No extensions required.** |
+| PostgreSQL | 18 | Supplied by the stack. **No extensions required.** |
 | Redis | 7 | Supplied by the stack. |
 | JDK | 17 | Only to build outside Docker. The images bundle their own. |
 | Python | 3.10+ | Only to run the probe agent outside Docker. |
 | Node.js | 18+ | Only to build or run the dashboard outside Docker. |
 
-!!! note "Any stock PostgreSQL 16 works"
-    The Compose file pulls `postgres:16-alpine`. Tracedown creates no
+!!! note "Any stock PostgreSQL 18 works"
+    The Compose file pulls `postgres:18-alpine`. Tracedown creates no
     hypertables, installs no extensions and depends on no particular
     distribution — a container, a distro package or a managed instance are all
     fine. See [Database & Migrations](database.md).

@@ -67,6 +67,66 @@ docker compose logs tracedown-migrator
 It logs the number of migrations applied. Services starting at all is itself
 evidence the migration succeeded, given the gating above.
 
+## Moving to PostgreSQL 18
+
+Release 0.4.0 moved every bundled stack — the development and deploy Compose
+files, the installer's monolith and Kubernetes modes, the end-to-end stack —
+from `postgres:16-alpine` to `postgres:18-alpine`. A volume that an earlier
+release initialised holds a PostgreSQL 16 cluster, and PostgreSQL 18 cannot
+open it: the container refuses to start (see
+[Troubleshooting](troubleshooting.md#postgres-will-not-start-there-appears-to-be-postgresql-data-in))
+rather than initialising an empty database beside your data. The move is a
+dump with the old version and a restore into the new one. The schema is plain
+SQL, so the dump needs no editing.
+
+Two things changed in the Compose file itself, in case you maintain your own:
+the image tag, and the mount point. The 18 images keep the cluster at
+`/var/lib/postgresql/18/docker`, so the volume now mounts the parent,
+`/var/lib/postgresql`, instead of `/var/lib/postgresql/data`.
+
+1. With the old stack still running, dump the database and confirm the dump
+   reads back:
+
+    ```bash
+    docker compose exec -T tracedown-postgres \
+      pg_dump -U tracedown -d tracedown -Fc > pre-18.dump
+    pg_restore -l pre-18.dump | head
+    ```
+
+2. Stop the stack, pull the release, and remove the old volume. This is the
+   irreversible step — do it only once the dump above is verified and copied
+   somewhere safe:
+
+    ```bash
+    docker compose down
+    git pull
+    docker volume rm tracedown_tracedown-pgdata   # confirm the name: docker volume ls
+    ```
+
+3. Start only the database, so it initialises an empty 18 cluster, and restore
+   into it **before** the migrator runs — the dump already contains the schema
+   and `flyway_schema_history`:
+
+    ```bash
+    docker compose up -d --wait tracedown-postgres
+    docker compose exec -T tracedown-postgres \
+      pg_restore -U tracedown -d tracedown --no-owner < pre-18.dump
+    ```
+
+4. Bring up the rest. The migrator finds the history table, applies whatever
+   the new release adds on top, and the services start:
+
+    ```bash
+    docker compose up -d
+    docker compose logs tracedown-migrator
+    ```
+
+The installer's monolith and Kubernetes modes follow the same shape with their
+own volume (`pgdata`, or the `tracedown-pgdata` claim) and service name
+(`postgres`). A managed instance — Railway, RDS and the like — upgrades with
+the provider's own major-version tooling instead; nothing on Tracedown's side
+changes. Backups in general are covered in [Backup & Restore](backup.md).
+
 ## Rolling back the schema
 
 Migrations that are not part of the initial schema ship with an undo script — a
