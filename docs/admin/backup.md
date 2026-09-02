@@ -62,7 +62,7 @@ accumulated.
     use yours.
 
 The schema uses no extensions and no hypertables, so a dump restores into any
-stock PostgreSQL 16 — a container, a distro package or a managed instance —
+stock PostgreSQL 18 — a container, a distro package or a managed instance —
 without ceremony. The one thing the restore target needs is
 `max_connections` at 160 or above before you point the stack at it. See
 [Database & Migrations](../install/database.md).

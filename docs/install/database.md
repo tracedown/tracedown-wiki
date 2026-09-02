@@ -1,9 +1,9 @@
 ---
-description: "Tracedown runs on stock PostgreSQL 16 with no extensions and no hypertables. How the Flyway schema-migrator applies, orders and undoes schema migrations."
+description: "Tracedown runs on stock PostgreSQL 18 with no extensions and no hypertables. How the Flyway schema-migrator applies, orders and undoes schema migrations."
 ---
 # Database & Migrations
 
-Tracedown stores everything in a single PostgreSQL 16 database. Schema changes
+Tracedown stores everything in a single PostgreSQL 18 database. Schema changes
 are applied by Flyway, run by a dedicated service called `schema-migrator` that
 does one job and exits.
 
@@ -11,16 +11,16 @@ does one job and exits.
 
 | Property | Value |
 |---|---|
-| Version | 16 |
+| Version | 18 |
 | Extensions | **None required** |
 | Hypertables | **None** |
 
 The schema is plain PostgreSQL. No `CREATE EXTENSION`, no `create_hypertable`,
-nothing that ties you to a particular distribution — any stock PostgreSQL 16
+nothing that ties you to a particular distribution — any stock PostgreSQL 18
 works, whether that is a container, a package, or a managed instance.
 
 Every stack in the repository — development Compose, the deploy Compose and the
-end-to-end test stack — runs `postgres:16-alpine` against these same migrations.
+end-to-end test stack — runs `postgres:18-alpine` against these same migrations.
 
 !!! warning "Raise `max_connections` to 160"
     The one setting Tracedown needs that a stock PostgreSQL does not give you.

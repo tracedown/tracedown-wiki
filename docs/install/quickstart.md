@@ -143,8 +143,8 @@ significance to it, and `GATEWAY_PORT` moves it.
     details and the per-service numbers.
 
 !!! note "Plain PostgreSQL, but not a plain `max_connections`"
-    The Compose file pulls `postgres:16-alpine` — Tracedown creates no
-    hypertables and needs no extensions, so any stock PostgreSQL 16 works. What
+    The Compose file pulls `postgres:18-alpine` — Tracedown creates no
+    hypertables and needs no extensions, so any stock PostgreSQL 18 works. What
     it does need is headroom: the stack reserves **103** connections while idle,
     above PostgreSQL's default of 100, which is why the Compose file starts it
     with `postgres -c max_connections=160`. Keep that if you substitute your own

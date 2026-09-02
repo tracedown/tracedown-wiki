@@ -55,11 +55,18 @@ Only after upgrading from a release whose Compose file pulled
 
 **Cause.** That image wrote `shared_preload_libraries = 'timescaledb'` into
 `postgresql.conf` inside the data volume when the volume was first initialised.
-The setting lives in the volume, not the image, so it survives the switch to
-`postgres:16-alpine` — which does not ship the library.
+The setting lives in the volume, not the image, so it survives the switch to a
+plain `postgres` image — which does not ship the library.
 
-**Fix.** Remove the setting from the existing volume, which does not need the
-database to be running:
+**Fix.** That volume is also a PostgreSQL 16 cluster, and the current stack
+runs PostgreSQL 18, which cannot open it — so the way through is the
+dump-and-restore in [Upgrading](upgrading.md#moving-to-postgresql-18): dump
+with the old image, restore into a fresh volume. The dump may carry a
+`CREATE EXTENSION timescaledb` line, which is safe to delete. Nothing in the
+schema used the extension, so nothing is lost.
+
+If you are staying on a PostgreSQL 16 image for now, removing the setting from
+the existing volume is enough, and does not need the database to be running:
 
 ```bash
 docker compose down
@@ -69,10 +76,22 @@ docker run --rm -v tracedown_tracedown-pgdata:/pg alpine \
   sed -i "s/^shared_preload_libraries = 'timescaledb'/#&/" /pg/postgresql.conf
 ```
 
-Then `docker compose up -d`. Nothing in the schema used the extension, so
-nothing is lost. If you would rather start clean, take a `pg_dump` first — see
-[Backup & Restore](backup.md) — and restore it into a fresh volume; the dump may
-carry a `CREATE EXTENSION timescaledb` line, which is safe to delete.
+### Postgres will not start: `there appears to be PostgreSQL data in`
+
+Only after upgrading to a release whose Compose file pulls `postgres:18-alpine`
+while keeping a volume that an older image initialised. The container exits
+with `Error: in 18+, these Docker images are configured to store database data
+in a format which is compatible with "pg_ctlcluster"` and names the directory
+it found.
+
+**Cause.** The volume holds a PostgreSQL 16 cluster. The 18 image keeps its
+cluster in a version-specific subdirectory (`/var/lib/postgresql/18/docker`)
+and refuses to start next to data it did not create, rather than silently
+initialising an empty database beside it.
+
+**Fix.** Restore a dump into a fresh volume — the procedure is in
+[Upgrading](upgrading.md#moving-to-postgresql-18). The refusal is the safe
+outcome: the old data is untouched until you remove the volume yourself.
 
 ### The Docker build fails at a COPY step
 

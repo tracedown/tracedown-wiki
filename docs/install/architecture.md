@@ -52,7 +52,7 @@ on each other.
         │                  │ webhooks → your endpoints
         ▼                  ▼
   ╔═══════════════════════════════════════════════════════════╗
-  ║                    PostgreSQL 16                          ║
+  ║                    PostgreSQL 18                          ║
   ╚═══════════════════════════════════════════════════════════╝
 ```
 
@@ -277,7 +277,7 @@ connections the platform opens against your targets at once.
 PostgreSQL is the system of record: organizations, workspaces, projects,
 services, probe scripts, variables, results, steps, aggregates, the outbox, and
 the CA. No extensions are required and no hypertables are created, so any stock
-PostgreSQL 16 will do. Redis A holds in-flight work and sessions. Response
+PostgreSQL 18 will do. Redis A holds in-flight work and sessions. Response
 bodies, when saving is enabled, go to a filesystem volume or an S3-compatible
 store; body saving is off by default, since storing every response body of every
 probe is expensive and rarely what you want. The aggregate-worker is the service
