@@ -577,6 +577,10 @@ A queue-based email dispatcher. It consumes from Redis and sends — it needs
 | `EMAIL_FILE_PATH` | Output path for the `file` provider — a single file, overwritten each send | `./emails` | No |
 | `EMAIL_CONSOLE_ATTACHMENT_DIR` | Where the `console` provider writes attachments | `build/email-attachments` | No |
 | `EMAIL_SERVICE_POP_TIMEOUT` | Queue pop timeout, seconds | `5` | No |
+| `EMAIL_TEMPLATE_DIR` | Directory of mail templates consulted before the packaged ones — adds types and overrides wording | *(unset)* | No |
+| `EMAIL_LOGO_URL` | Absolute URL of a small PNG shown in the header of every mail (28×28); unset shows the wordmark alone | *(unset)* | No |
+| `EMAIL_PRODUCT_URL` | Where the mail header links to | *(unset)* | No |
+| `EMAIL_FOOTER_HTML` | Small print under every mail, as HTML — an imprint line, links to your own pages | *(unset)* | No |
 
 This is the only place mail is configured. Every other service that sends —
 the gateway's invites and password resets, the notification-dispatcher's
