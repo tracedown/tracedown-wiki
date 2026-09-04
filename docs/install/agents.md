@@ -107,6 +107,13 @@ answers to its unprefixed, platform-wide name as well.
     fails. The scheme matters as much as the host — see [Authenticating the
     gateway at enrolment](#authenticating-the-gateway-at-enrolment).
 
+    The dashboard's connect panel and `--agent-bootstrap` print the value to
+    use: `GATEWAY_PUBLIC_URL` on the gateway when it is set, otherwise the
+    Compose address above with a warning that it only works on that network.
+    The gateway cannot infer its own public address — behind a reverse proxy
+    it sees the proxy's host — so set the variable on any deployment whose
+    agents live off the Docker network.
+
 ### Why `MAX_CONCURRENCY` defaults to 256
 
 Probes block on network I/O — DNS, TCP connect, TLS handshake, time-to-first-byte,
