@@ -264,6 +264,7 @@ fail this way; setting nothing is never an error.
 | `TRUSTED_DOMAIN_MODE` | Skip domain-ownership checks (auto-verify all) | `false` | No |
 | `ALLOW_PROFILE_EDIT` | Let users edit their display name | `true` | No |
 | `METRICS_PUBLIC_URL` | Public metrics base URL shown in Grafana integrations | *(empty)* | No |
+| `GATEWAY_PUBLIC_URL` | Public base URL of the gateway as probe agents reach it, e.g. `https://tracedown.example.com`; printed as `PROBE_AGENT_SCHEDULER_URL` next to every bootstrap token the dashboard or `--agent-bootstrap` issues. Unset, the dashboard prints the Compose stack's internal address with a warning | *(empty)* | No |
 | `AUDIT_LOG_RETENTION_DAYS` | Days to keep audit log entries (enforced by the aggregate-worker; set identically in both) | `90` | No |
 
 `APP_URL` is what users click. It is the base for invite and reset links in
