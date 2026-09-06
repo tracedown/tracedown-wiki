@@ -14,10 +14,10 @@ executes probes in-process with an embedded executor instead — it uses no
 agents, and nothing on this page applies to it.
 
 The agent lives in `core/tracedown-probe-agent`. It is a Python FastAPI service
-(Python 3.10+, shipped as `python:3.12-slim`) that wraps the Lace executor. Its
+(Python 3.11+, shipped as `python:3.13-slim`) that wraps the Lace executor. Its
 dependencies are deliberately small: `fastapi`, `uvicorn[standard]`, `httpx`,
-`cryptography>=44`, `boto3`, and the `lacelang-validator` / `lacelang-executor`
-pair.
+`cryptography`, `pydantic`, `boto3`, and the `lacelang-validator` /
+`lacelang-executor` pair.
 
 ## The agent is stateless
 
