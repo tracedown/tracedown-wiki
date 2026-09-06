@@ -1,5 +1,5 @@
 ---
-description: "Host sizing, Docker, PostgreSQL 18 and Redis 7 versions needed to run self-hosted Tracedown - and why any stock PostgreSQL 18 will do."
+description: "Host sizing, Docker, PostgreSQL 18 and Redis 8 versions needed to run self-hosted Tracedown - and why any stock PostgreSQL 18 will do."
 ---
 # Requirements
 
@@ -21,8 +21,8 @@ each JVM's heap and connection pool so the stack fits in roughly 8 vCPU / 7 GB.
 |---|---|---|
 | Docker Engine | 24+ | With the Compose plugin (`docker compose`, not `docker-compose`). |
 | PostgreSQL | 18 | Supplied by the stack. **No extensions required.** |
-| Redis | 7 | Supplied by the stack. |
-| JDK | 17 | Only to build outside Docker. The images bundle their own. |
+| Redis | 8 | Supplied by the stack. |
+| JDK | 17+ | Only to build outside Docker. The jars are compiled to Java 17 bytecode and run on 17 or anything newer; the shipped images bundle Temurin 21. |
 | Python | 3.10+ | Only to run the probe agent outside Docker. |
 | Node.js | 18+ | Only to build or run the dashboard outside Docker. |
 
@@ -31,6 +31,17 @@ each JVM's heap and connection pool so the stack fits in roughly 8 vCPU / 7 GB.
     hypertables, installs no extensions and depends on no particular
     distribution — a container, a distro package or a managed instance are all
     fine. See [Database & Migrations](database.md).
+
+!!! note "Redis 8 is not BSD-licensed — Valkey 8 is a drop-in alternative"
+    The Compose files pull `redis:8-alpine`. From Redis 8 on, the server is
+    distributed under RSALv2, SSPLv1 or AGPLv3 rather than the BSD license that
+    covered Redis 7 and earlier. Tracedown uses only ordinary key, list and
+    pub/sub commands — no modules, no Redis-specific extensions — so if that
+    license change is a problem for you, point the stack at
+    `valkey/valkey:8-alpine`, the BSD-licensed fork, and change nothing else:
+    the `REDIS_*_URL` values, the `--appendonly yes` and `--maxmemory-policy`
+    arguments and the `redis-cli ping` healthcheck all work unchanged. Redis
+    stays the tested and supported default.
 
 !!! warning "`max_connections` must be at least 160"
     The stack reserves **103** connections while idle, so the PostgreSQL default

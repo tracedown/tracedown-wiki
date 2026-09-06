@@ -1,12 +1,12 @@
 ---
-description: "Run all of Tracedown from a single jar: one JVM, dashboard included, probes executed in-process. Needs only PostgreSQL, Redis and Java 17, plus the trade-offs."
+description: "Run all of Tracedown from a single jar: one JVM, dashboard included, probes executed in-process. Needs only PostgreSQL, Redis and Java 17 or newer, plus the trade-offs."
 ---
 # Monolith (single jar)
 
 The monolith is the entire platform in one artifact: every service in a single
 JVM, the dashboard served from the same port as the API, and probes executed by
 an embedded Lace executor instead of external agents. It needs a PostgreSQL
-database, a Redis instance, a Java 17 runtime — and nothing else. It applies
+database, a Redis instance, a Java 17-or-newer runtime — and nothing else. It applies
 its own schema migrations on boot.
 
 It exists because eight services is the right shape for a platform and the
@@ -123,7 +123,9 @@ Tracedown](../admin/observability.md#health-endpoints).
 
 ### In a container
 
-The jar runs fine in a stock JRE image; there is no dedicated monolith image.
+The jar runs fine in a stock JRE image; there is no dedicated monolith image. It
+is compiled to Java 17 bytecode, so any JRE from 17 up will run it — the tag
+below is the one the rest of the stack is built and tested on.
 
 ```bash
 docker run -d --name tracedown \
@@ -133,7 +135,7 @@ docker run -d --name tracedown \
   -e DATABASE_USER=tracedown -e DATABASE_PASSWORD=… \
   -e REDIS_A_URL=redis://your-redis:6379 \
   -v ./tracedown-monolith-<version>-all.jar:/app.jar:ro \
-  eclipse-temurin:17-jre java -jar /app.jar
+  eclipse-temurin:21-jre java -jar /app.jar
 ```
 
 ### Behind a reverse proxy (TLS)
