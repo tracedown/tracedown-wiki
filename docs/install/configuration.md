@@ -515,6 +515,8 @@ no Redis B — plus the body-storage settings below.
 | `STORAGE_S3_ACCESS_KEY` / `STORAGE_S3_SECRET_KEY` | S3 credentials | *(empty)* | Yes, once the endpoint is set |
 | `STORAGE_S3_BUCKET` | Bucket for relocated bodies | *(unset)* | Yes, once the endpoint is set |
 | `STORAGE_S3_PREFIX` | Key prefix within the bucket | *(empty)* | No |
+| `STORAGE_S3_REGION` | Signing region: `auto` for R2, the bucket's region for AWS S3; MinIO ignores it | `auto` | No |
+| `STORAGE_S3_TIMEOUT_SECONDS` | Connect/read/write timeout per store call; a store that stops answering fails the call instead of parking the thread | `30` | No |
 
 The storage settings mirror where the agents put saved response bodies: the
 ingestor relocates bodies as results land, so its view of the store has to
@@ -665,6 +667,8 @@ storage alongside the database rows.
 | `STORAGE_S3_ENDPOINT` | S3-compatible endpoint — presence enables deletion | *(unset)* | No |
 | `STORAGE_S3_ACCESS_KEY` | Access key | *(empty)* | Yes, once the endpoint is set |
 | `STORAGE_S3_SECRET_KEY` | Secret key | *(empty)* | Yes, once the endpoint is set |
+| `STORAGE_S3_REGION` | Signing region (`auto` for R2) | `auto` | No |
+| `STORAGE_S3_TIMEOUT_SECONDS` | Per-call timeout; a hung delete is recorded in `pending_body_deletions` and retried later instead of stalling retention | `30` | No |
 
 !!! warning "The endpoint variable is the on/off switch"
     `STORAGE_S3_ENDPOINT` has no default. Its **presence** enables S3 body
