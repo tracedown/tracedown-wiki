@@ -123,6 +123,16 @@ exact opposite and keeps raw results forever.
     months of which the worker deleted. There is no cross-check at startup; the
     only symptom is empty charts.
 
+### Reading a retention tick
+
+Each tick logs the latency of its first body delete (`Retention: first body
+delete for org … took N ms`) and one line per batch of 500 results (`Retention:
+org … batch N — results, bodies, failures, elapsed`), then a per-org total. A
+tick with a start line and no batch line within `STORAGE_S3_TIMEOUT_SECONDS`
+(default 30) is waiting on the store; from 0.4.18 that wait ends in a recorded
+failure rather than a silent stall, and `BodyDeletionRetryJob` picks the
+object up on a later tick.
+
 ### Hourly aggregate retention
 
 `AggregateRetentionJob` deletes hourly aggregate rows older than
