@@ -321,8 +321,11 @@ dashboard advertises a window the worker has already pruned.
 
 **Cause.** `TRUSTED_DOMAIN_MODE` is `false` and the target domain is unverified.
 The anti-abuse policy then caps the script at 3 calls, disables body saving, and
-enforces a 5-minute minimum interval. Scripts exceeding the call limit are
-skipped outright.
+enforces a 5-minute minimum interval. Every tick the policy withholds is
+recorded as a skipped result whose reason names the rule — `unverified_throttle`
+(ran too soon after the previous run), `unverified_max_calls` (more than 3
+calls) or `unverified_includes` (`includes()` against an unverified domain) —
+so the gap is explicable from the history; no alert is raised for them.
 
 **Fix.** Verify the domain (Settings → Domains), or set `TRUSTED_DOMAIN_MODE=true`
 if every target is one you control — this turns the ownership checks off.
