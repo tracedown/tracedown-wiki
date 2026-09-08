@@ -23,14 +23,20 @@ once it has a script and you write that in the editor.
 
 A new service starts:
 
-- **inactive** — it will not be dispatched until you enable it;
+- **inactive** — nothing is dispatched until it has a script; the first save
+  of the script switches it on by itself (see below);
 - on the default schedule `*/5 * * * *` (every five minutes);
 - with no script;
 - opened straight into edit mode, with the script editor focused on the
   work that actually matters.
 
 A service **cannot be enabled until it has a script**. There is nothing to run
-otherwise, so the Enable action stays disabled until you have saved one.
+otherwise, so the Enable action stays disabled until you have saved one — and
+you rarely need it for a new service: **the first save of a valid script
+enables the service automatically**, so it starts probing on its schedule
+without a further click. Only that first save does this; a service you pause
+later stays paused through every subsequent save until you enable it again.
+A first save that leaves the script blank keeps the service inactive.
 
 !!! note "A service has no URL of its own"
     Selecting a service is local state inside the project view — the address bar
@@ -230,7 +236,7 @@ The service panel header carries the actions you reach for between edits.
 | Action | Availability | Effect |
 |---|---|---|
 | Run now | Only when the service is active **and** has a script | Queues an immediate one-off run; the UI confirms *Probe run queued* |
-| Enable | Requires a script | Starts scheduled dispatch |
+| Enable | Requires a script | Starts scheduled dispatch. A new service needs no click here: its first script save enables it |
 | Pause | Always allowed | Stops scheduled dispatch. Pausing an active service is a three-second hold, like the delete button |
 | Edit | With edit rights | Opens the form |
 | Close | Always | Closes the panel |
