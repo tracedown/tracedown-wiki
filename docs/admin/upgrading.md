@@ -67,6 +67,50 @@ docker compose logs tracedown-migrator
 It logs the number of migrations applied. Services starting at all is itself
 evidence the migration succeeded, given the gating above.
 
+## Body stores (0.4.34)
+
+Release 0.4.34 adds [body stores](body-stores.md) — locations other than the
+platform's own storage that named agents keep saved response bodies in. An
+existing install is unaffected until you create one: with no stores, bodies go
+exactly where they went before. Three things are still worth doing at the
+upgrade rather than after it.
+
+**Give the aggregate-worker its bucket and prefix.** The worker now deletes only
+inside the location it is configured with — `STORAGE_S3_BUCKET` plus
+`STORAGE_S3_PREFIX` for S3, `STORAGE_FILESYSTEM_ROOT` for disk. Set them to the
+same values result-ingestor has. A worker whose bucket or prefix does *not*
+match the ingestor's is the case to avoid: it skips every body outside its own
+fence rather than deleting it, logging them at WARN with a count per run, and
+the objects accrue with nothing pointing at them. An install that set
+`STORAGE_S3_ENDPOINT` on the worker and no bucket — which is all this
+documentation previously asked for — keeps the old unconfined behaviour and
+says so at startup with a WARN, so the upgrade does not silently stop deleting.
+See [Body storage](../install/configuration.md#body-storage).
+
+**Add `BODY_STORE_AES_KEY` before you create your first store.** Body-store
+credentials are encrypted under a key of their own, shared by api-gateway and
+result-ingestor, with no default and no placeholder. It is not needed to
+upgrade; it is needed before the first store is saved. Generate it with
+`openssl rand -hex 32` — see
+[Secrets & Encryption](secrets.md#body_store_aes_key).
+
+**Nothing else.** The migrations add one table and three nullable columns. There
+is no backfill, and no downtime beyond the ordinary migrator run.
+
+!!! danger "Do not roll the schema back past 0.4.34 once an `in_place` store holds bodies"
+    `probe_steps.body_store_id` is the only record of which bodies live outside
+    the default store. Its undo script clears the stored URL on every step that
+    carries one before dropping the column, so rolling back turns every
+    `in_place` body into "not stored" — permanently, and for bodies the platform
+    never had a copy of. The objects survive in the store; nothing in Tracedown
+    knows where they are any more.
+
+    The two undo scripts also have an order between them:
+    `probe_steps.body_store_id` references `body_stores(id)`, so the
+    result-ingestor's undo has to run before the gateway's. If you have to go
+    back, restore the backup you took before the upgrade instead. See
+    [Rolling back the schema](#rolling-back-the-schema).
+
 ## Moving to PostgreSQL 18
 
 Release 0.4.0 moved every bundled stack — the development and deploy Compose

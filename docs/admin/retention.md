@@ -223,6 +223,40 @@ delete the rows that reference them, so the bodies do not outlive their results
 and leak — whether the rows age out or are purged with a deleted service,
 project, workspace or organization.
 
+That covers the bodies the platform owns. A body written by an agent assigned a
+[body store](body-stores.md) is handled by the store's mode:
+
+| Where the agent wrote it | What happens to the body | Who deletes it |
+|---|---|---|
+| No store — the default store | Stays in the default store | The worker, on the windows above |
+| An `import` store | Copied into the default store as the result lands, and removed from the store it came from | The worker, on the windows above |
+| An `in_place` store | Stays where the agent wrote it; the gateway reads it on demand | **Nobody.** The platform never deletes from an `in_place` store |
+
+So `import` stores change nothing here: by the time a result is queryable its
+body is in the default store, and it ages out with everything else.
+
+`in_place` stores move the decision to whoever owns the bucket or the directory.
+The worker deletes the *rows* on the normal schedule and leaves the objects
+alone — deliberately, because the store is not the platform's to empty. If you
+want those objects gone, put a lifecycle rule on the bucket or a cleanup job on
+the directory.
+
+!!! note "Deleting an `in_place` store does not delete its objects either"
+    A store cannot be deleted while an agent, an outstanding bootstrap token or
+    a stored body still names it. The forcing form — **Delete and forget
+    bodies** — clears the URL on every step that pointed into the store,
+    recording `storeRemoved` as the reason the body is unavailable, and drops
+    the row. The results keep everything else; the objects are untouched in a
+    store Tracedown no longer holds credentials for. See
+    [Deleting a store](body-stores.md#deleting-a-store).
+
+!!! danger "Do not roll the worker back past 0.4.34 once an `in_place` store is in use"
+    The column that records which store a body lives in is undone by clearing
+    the stored URL on every step that carries one. Rolling the schema back
+    therefore turns every `in_place` body into "not stored", permanently — and
+    those are exactly the bodies the platform never kept a copy of. See
+    [Upgrading](upgrading.md#body-stores-0434).
+
 The destination depends on one variable. **The presence of `STORAGE_S3_ENDPOINT`
 is the on/off switch** — the worker builds an S3 client only if the endpoint is
 set:
@@ -230,8 +264,9 @@ set:
 === "Local disk (default)"
 
     No `STORAGE_S3_ENDPOINT`. Bodies live on the `tracedown-bodies` volume at
-    `/data/bodies` and retention deletes them from disk. Nothing else to
-    configure.
+    `STORAGE_FILESYSTEM_ROOT` (`/data/bodies` by default) and retention deletes
+    them from disk. Nothing else to configure — but the root is also the fence,
+    so if you moved it, set the same value here as on the ingestor.
 
 === "S3-compatible store"
 
@@ -239,12 +274,29 @@ set:
     STORAGE_S3_ENDPOINT=https://account.r2.cloudflarestorage.com
     STORAGE_S3_ACCESS_KEY=...
     STORAGE_S3_SECRET_KEY=...
+    STORAGE_S3_BUCKET=tracedown-bodies
+    STORAGE_S3_PREFIX=bodies
     ```
 
     `STORAGE_S3_ACCESS_KEY` and `STORAGE_S3_SECRET_KEY` must be set alongside
     the endpoint — the worker starts without them, but every delete then fails
-    at runtime. Any S3-compatible store works — R2, MinIO, Backblaze B2,
-    Spaces.
+    at runtime. `STORAGE_S3_BUCKET` and `STORAGE_S3_PREFIX` name the default
+    store and must match the ingestor's, because they are also what the worker
+    is allowed to delete inside. Any S3-compatible store works — R2, MinIO,
+    Backblaze B2, Spaces.
+
+!!! warning "The worker deletes only inside the location it is given"
+    `STORAGE_S3_BUCKET` and `STORAGE_S3_PREFIX`, or `STORAGE_FILESYSTEM_ROOT`,
+    fence the worker: a stored body whose URI falls outside them is skipped
+    rather than deleted, and logged at WARN with a count for the run. That fence
+    is what stops a misconfigured worker from deleting inside somebody's body
+    store, and it is why the worker's three variables must match the
+    result-ingestor's exactly.
+
+    If `STORAGE_S3_ENDPOINT` is set with no `STORAGE_S3_BUCKET`, the worker
+    falls back to deleting wherever a body's URI points, and warns at startup
+    that it has done so — the pre-0.4.34 behaviour, kept so an upgrade cannot
+    silently stop deleting. Set the bucket and prefix instead of living with it.
 
 !!! warning "Credentials that cannot delete leave orphans"
     A body delete that fails is logged and the run carries on to remove the
@@ -272,6 +324,7 @@ at whatever raw retention you have.
 
 ## Related
 
+- [Body Stores](body-stores.md) — bodies the platform does not delete.
 - [Scaling](scaling.md) — why the worker is single-replica.
 - [Configuration](../install/configuration.md) — full environment reference.
 - [Database & Migrations](../install/database.md) — schema and growth.

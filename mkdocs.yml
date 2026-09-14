@@ -109,6 +109,7 @@ nav:
     - Data:
       - Backup & Restore: admin/backup.md
       - Retention & Aggregation: admin/retention.md
+      - Body Stores: admin/body-stores.md
     - Operations:
       - Scaling: admin/scaling.md
       - Monitoring Tracedown: admin/observability.md

@@ -522,3 +522,51 @@ filesystem exists.
 Body saving is off unless a script asks for it, and the scheduler can forbid it
 per job regardless of what the script requests. See
 [Configuration](configuration.md).
+
+### The agent's storage environment
+
+An agent assigned a [body store](../admin/body-stores.md) writes its bodies
+there instead of into the platform's own storage, and it does so through the
+ordinary `PROBE_AGENT_*` variables above. The store row tells the platform where
+to *look*; these tell the agent where to *write*, and the two have to agree.
+
+The dashboard's connect form prints the exact set for the store you pick, with
+the agent's slug already appended:
+
+=== "S3 store"
+
+    ```bash
+    PROBE_AGENT_STORAGE_BACKEND=s3
+    PROBE_AGENT_S3_ENDPOINT_URL=https://account.r2.cloudflarestorage.com
+    PROBE_AGENT_S3_REGION=auto
+    PROBE_AGENT_S3_BUCKET=eu-bodies
+    PROBE_AGENT_S3_PREFIX=bodies/paris-1
+    PROBE_AGENT_S3_ACCESS_KEY_ID=<a key with write access>
+    PROBE_AGENT_S3_SECRET_ACCESS_KEY=<its secret>
+    ```
+
+=== "Filesystem store"
+
+    ```bash
+    PROBE_AGENT_STORAGE_BACKEND=filesystem
+    PROBE_AGENT_STORAGE_DIR=/data/stores/eu-west/paris-1
+    ```
+
+    The directory must be the same one the gateway and the ingestor see, so the
+    agent needs the store's volume mounted at the store's root path. See
+    [Filesystem stores](../admin/body-stores.md#filesystem-stores).
+
+The trailing `paris-1` in both is the **agent's slug**, appended to the store's
+prefix or root. Every agent sharing a store writes under its own
+`<prefix>/<agent-slug>/`, and a body written anywhere else in the store is
+refused at ingest with the reason `outsideAssignedStore`. The connect form
+appends it for you; if you are writing the environment by hand, do not leave it
+off.
+
+The credentials here are the **agent's own**, and they need write access and
+nothing more. The store's credentials — the ones the gateway and the
+result-ingestor read with — are configured on the store and are not these.
+
+Changing an agent's store means changing these variables and restarting the
+agent. The assignment on its own moves nothing; see
+[Assigning an agent](../admin/body-stores.md#assigning-an-agent).
