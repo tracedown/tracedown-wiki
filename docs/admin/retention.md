@@ -250,7 +250,7 @@ the directory.
     store Tracedown no longer holds credentials for. See
     [Deleting a store](body-stores.md#deleting-a-store).
 
-!!! danger "Do not roll the worker back past 0.4.34 once an `in_place` store is in use"
+!!! danger "Do not roll the worker back past 0.4.33 once an `in_place` store is in use"
     The column that records which store a body lives in is undone by clearing
     the stored URL on every step that carries one. Rolling the schema back
     therefore turns every `in_place` body into "not stored", permanently — and
@@ -295,7 +295,7 @@ set:
 
     If `STORAGE_S3_ENDPOINT` is set with no `STORAGE_S3_BUCKET`, the worker
     falls back to deleting wherever a body's URI points, and warns at startup
-    that it has done so — the pre-0.4.34 behaviour, kept so an upgrade cannot
+    that it has done so — the pre-0.4.33 behaviour, kept so an upgrade cannot
     silently stop deleting. Set the bucket and prefix instead of living with it.
 
 !!! warning "Credentials that cannot delete leave orphans"

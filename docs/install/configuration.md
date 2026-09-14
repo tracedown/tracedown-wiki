@@ -731,7 +731,7 @@ storage alongside the database rows.
     somebody's [body store](../admin/body-stores.md), so set all three to the
     same values the result-ingestor has. If `STORAGE_S3_ENDPOINT` is set with
     no `STORAGE_S3_BUCKET`, the worker falls back to deleting wherever a body's
-    URI points and says so at startup with a WARN — the pre-0.4.34 behaviour,
+    URI points and says so at startup with a WARN — the pre-0.4.33 behaviour,
     kept so that an upgrade does not silently stop deleting, but not a
     configuration to stay on.
 

@@ -67,9 +67,9 @@ docker compose logs tracedown-migrator
 It logs the number of migrations applied. Services starting at all is itself
 evidence the migration succeeded, given the gating above.
 
-## Body stores (0.4.34)
+## Body stores (0.4.33)
 
-Release 0.4.34 adds [body stores](body-stores.md) — locations other than the
+Release 0.4.33 adds [body stores](body-stores.md) — locations other than the
 platform's own storage that named agents keep saved response bodies in. An
 existing install is unaffected until you create one: with no stores, bodies go
 exactly where they went before. Three things are still worth doing at the
@@ -97,7 +97,7 @@ upgrade; it is needed before the first store is saved. Generate it with
 **Nothing else.** The migrations add one table and three nullable columns. There
 is no backfill, and no downtime beyond the ordinary migrator run.
 
-!!! danger "Do not roll the schema back past 0.4.34 once an `in_place` store holds bodies"
+!!! danger "Do not roll the schema back past 0.4.33 once an `in_place` store holds bodies"
     `probe_steps.body_store_id` is the only record of which bodies live outside
     the default store. Its undo script clears the stored URL on every step that
     carries one before dropping the column, so rolling back turns every
