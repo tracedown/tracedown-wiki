@@ -1,5 +1,5 @@
 ---
-description: "PLATFORM_AES_KEY encrypts Tracedown's probe variables, TOTP secrets and CA root key. Generating real values, envelope encryption, and how far the key can be rotated."
+description: "PLATFORM_AES_KEY encrypts Tracedown's probe variables, TOTP secrets and CA root key, BODY_STORE_AES_KEY the body stores' credentials. Generating real values, envelope encryption, and how far each key can be rotated."
 ---
 # Secrets & Encryption
 
@@ -26,10 +26,11 @@ the mechanics.
 | Secret | Format | Protects |
 |---|---|---|
 | `PLATFORM_AES_KEY` | Exactly 64 hex characters (256 bits) | CA root private key, per-org data-encryption keys (and through them all secret variables), non-secret encrypted variables, TOTP secrets, domain-verification HMAC |
+| `BODY_STORE_AES_KEY` | Exactly 64 hex characters (256 bits) | The secret access keys of [body stores](body-stores.md) |
 | `JWT_SECRET` | Free-form string | Reserved for token signing — see below |
 | `DATABASE_PASSWORD` | Free-form string | PostgreSQL authentication |
 | Email provider credentials | Provider-issued | Outbound mail |
-| Object store credentials | Provider-issued | Saved response bodies |
+| Object store credentials | Provider-issued | Saved response bodies — the platform's own store, from the environment, and each body store's, from the database |
 | Agent bootstrap token | 64 hex characters, generated | One-time agent enrolment |
 
 ### PLATFORM_AES_KEY
@@ -87,6 +88,61 @@ unset, so a bootstrap token cannot be minted under an accidental default key.
     **not** cover — see [The first
     account](../install/configuration.md#the-first-account).
 
+### BODY_STORE_AES_KEY
+
+[Body stores](body-stores.md) hold credentials of their own — the secret access
+key of a bucket somebody typed into the dashboard — and those are encrypted with
+a **separate key**, not with `PLATFORM_AES_KEY`.
+
+The format is identical: exactly 64 hex characters, generated the same way
+(`openssl rand -hex 32`), and rejected at any other length. What differs is who
+holds it.
+
+!!! warning "Two services share this key, and they are not the same two"
+    `BODY_STORE_AES_KEY` is read by **api-gateway** and **result-ingestor**,
+    and must be identical in both. The gateway writes a store's secret when
+    somebody saves it and reads it back to fetch a body; the ingestor reads it
+    to import a body out of a store. No other service has any use for it.
+
+    The ingestor is deliberately **not** given `PLATFORM_AES_KEY`. Store
+    credentials were the only reason it would ever have needed one, and a
+    separate key means the service that consumes the result queue cannot
+    decrypt probe variables, TOTP secrets or the CA key even in principle.
+
+It protects exactly one thing — `body_stores.secret_enc` — and nothing else
+depends on it. That makes its failure mode narrow and obvious rather than
+catastrophic: a missing or wrong key does not stop anything from starting, it
+makes body-store calls fail. Both services log a WARN at startup when stores
+exist and the key is unset, and a store's **Test** button reports
+`secret_undecryptable`.
+
+The key has no default. An installation with no stores does not need it at all,
+which is why it is not among the values the production guard refuses — there is
+no published placeholder to refuse.
+
+#### Rotating BODY_STORE_AES_KEY
+
+`--rewrap-body-stores` re-encrypts every store's secret from an old key to a
+new one, the same shape as `--rewrap-org-keys`:
+
+```bash
+BODY_STORE_AES_KEY=<new key> BODY_STORE_AES_KEY_OLD=<old key> \
+  java -jar api-gateway.jar --rewrap-body-stores
+```
+
+Both values must be 64 hex characters. Rows already readable under the new key
+are skipped, so the command is idempotent and safe to re-run after a partial
+failure, and each row it rewraps has its `updated_at` bumped. Run it with the
+services stopped, in the gap between shutting them down under the old key and
+starting them under the new one — a gateway or ingestor still holding the old
+key cannot read a secret the rewrap has already moved.
+
+A secret that decrypts under neither key is reported by store and the command
+exits non-zero. Unlike the platform key, that is recoverable without tooling:
+re-enter the store's secret access key in the dashboard and it is rewritten
+under the current key. Store credentials are provider-issued and reissuable,
+which is most of why they were worth splitting off in the first place.
+
 ### JWT_SECRET
 
 Despite the name, sessions are **not** JWTs. A session token is 32 bytes from a
@@ -120,6 +176,12 @@ deletes them at retention:
 | aggregate-worker | `STORAGE_S3_ACCESS_KEY`, `STORAGE_S3_SECRET_KEY` |
 | result-ingestor | `STORAGE_S3_ACCESS_KEY`, `STORAGE_S3_SECRET_KEY` |
 | probe agent | `PROBE_AGENT_S3_ACCESS_KEY_ID`, `PROBE_AGENT_S3_SECRET_ACCESS_KEY` |
+
+Those are the credentials of the platform's own store, and they come from the
+environment. A [body store](body-stores.md) carries its own pair instead, typed
+into the dashboard and held encrypted in the database under
+[`BODY_STORE_AES_KEY`](#body_store_aes_key) — never in a variable, and never
+returned by the API once saved.
 
 ### Agent bootstrap tokens
 
@@ -177,6 +239,16 @@ account](../install/configuration.md#the-first-account).
     random bytes render as exactly 64 characters — which is the 256 bits
     AES-256 requires. `openssl rand -hex 64` would give you 128 characters and
     fail the length check at startup.
+
+=== "BODY_STORE_AES_KEY"
+
+    ```bash
+    openssl rand -hex 32
+    ```
+
+    Same format and same check as the platform key, and a **different value** —
+    generating one key and pasting it into both variables gives away the point
+    of having two. It is needed only once an installation has a body store.
 
 === "JWT_SECRET"
 
@@ -316,6 +388,7 @@ rather than an afternoon's change.
 | Non-secret encrypted variables (the "Variable" type) | Unreadable | Re-enter each value by hand. You must already know it; the stored one cannot be read back. |
 | TOTP secrets | Unreadable | Clear the enrolment in the database, then the user enrols again. |
 | CA root private key | Unreadable | Re-issue the CA in the database and re-bootstrap every agent. |
+| Body store secret access keys | Unaffected | Nothing — they are encrypted under `BODY_STORE_AES_KEY`, which rotates on its own with [`--rewrap-body-stores`](#rotating-body_store_aes_key). |
 
 Pre-envelope secrets are worth a check before you start. The startup
 re-encryption pass converts old-format secrets to the envelope and logs the

@@ -425,6 +425,38 @@ first-boot-only affair.
     `platform.conf` and rebuilding. Group membership and permissions are
     editable per-org in the UI afterwards, which is the intended path.
 
+### Body stores
+
+The gateway owns [body stores](../admin/body-stores.md) — the alternative
+locations agents may keep saved response bodies in — and reads a body back out
+of a store that keeps it in place.
+
+| Variable | Purpose | Default | Required |
+|---|---|---|---|
+| `BODY_STORE_AES_KEY` | 64 hex chars — encrypts body-store secret keys at rest. Must be identical on result-ingestor | *(unset)* | Once a store exists |
+| `BODY_STORE_FILESYSTEM_BASES` | Comma-separated directories a filesystem store's root may sit beneath | *(unset)* | No |
+| `BODY_STORE_PRIVATE_ENDPOINTS` | Allow `http://` and private, CGNAT, loopback, internal-suffix and single-label hosts as store endpoints | `false` | No |
+
+`BODY_STORE_AES_KEY` is a **separate key from `PLATFORM_AES_KEY`**, with the
+same 64-hex-character format, and it is shared with result-ingestor and nothing
+else. Without it the stores' credentials cannot be decrypted and every store
+call fails; the gateway and the ingestor log a WARN at startup when stores
+exist and the key is missing. See
+[Secrets & Encryption](../admin/secrets.md#body_store_aes_key).
+
+`BODY_STORE_FILESYSTEM_BASES` has **no default**. Left unset, filesystem stores
+cannot be created at all — which is what you want unless you have a directory
+shared by the gateway, the ingestor and the agents. A store's root must be a
+directory *beneath* one of the bases; a base itself is refused. Set the same
+value on the ingestor.
+
+`BODY_STORE_PRIVATE_ENDPOINTS` lifts the endpoint guard that otherwise refuses
+anything but a public `https` host. It exists for an object store on the same
+private network as the platform, it is a deployment-wide decision rather than a
+per-store one, and it must be set on the ingestor too. The shipped Compose
+stack sets it, because everything in it is on one Docker network. See
+[Private endpoints](../admin/body-stores.md#private-endpoints).
+
 ### Email
 
 The gateway does not send mail itself. Invites and password resets are published
@@ -517,11 +549,27 @@ no Redis B — plus the body-storage settings below.
 | `STORAGE_S3_PREFIX` | Key prefix within the bucket | *(empty)* | No |
 | `STORAGE_S3_REGION` | Signing region: `auto` for R2, the bucket's region for AWS S3; MinIO ignores it | `auto` | No |
 | `STORAGE_S3_TIMEOUT_SECONDS` | Connect/read/write timeout per store call; a store that stops answering fails the call instead of parking the thread | `30` | No |
+| `BODY_STORE_AES_KEY` | 64 hex chars — decrypts body-store secret keys. Must be identical to the gateway's | *(unset)* | Once a store exists |
+| `BODY_STORE_FILESYSTEM_BASES` | Comma-separated directories a filesystem store's root may sit beneath | *(unset)* | No |
+| `BODY_STORE_PRIVATE_ENDPOINTS` | Allow `http://` and private, CGNAT, loopback, internal-suffix and single-label hosts as store endpoints | `false` | No |
 
 The storage settings mirror where the agents put saved response bodies: the
 ingestor relocates bodies as results land, so its view of the store has to
 match the agents' — same filesystem root when bodies are on a shared volume,
 same S3 endpoint when they are in a bucket.
+
+The three `BODY_STORE_*` variables are the ingestor's half of
+[body stores](../admin/body-stores.md), and all three must match the gateway's
+exactly. The ingestor is the service that imports a body out of an `import`
+store, so an `import` store's endpoint has to be reachable from *here* —
+the dashboard's Test button probes it from the gateway instead, which is not
+the same network on every deployment.
+
+!!! note "The ingestor is not given `PLATFORM_AES_KEY`"
+    It does not need it. Probe variables, TOTP secrets and the CA key are
+    decrypted elsewhere; the only credentials the ingestor decrypts are body
+    stores', and those are under `BODY_STORE_AES_KEY`. Setting the platform key
+    here does nothing. See [Secrets & Encryption](../admin/secrets.md).
 
 !!! note "Queue pop timeout is fixed"
     The ingestor's blocking-pop timeout (5 seconds) is a code default with no
@@ -667,8 +715,25 @@ storage alongside the database rows.
 | `STORAGE_S3_ENDPOINT` | S3-compatible endpoint — presence enables deletion | *(unset)* | No |
 | `STORAGE_S3_ACCESS_KEY` | Access key | *(empty)* | Yes, once the endpoint is set |
 | `STORAGE_S3_SECRET_KEY` | Secret key | *(empty)* | Yes, once the endpoint is set |
+| `STORAGE_S3_BUCKET` | Bucket the worker may delete in | *(unset)* | Yes, once the endpoint is set |
+| `STORAGE_S3_PREFIX` | Key prefix within that bucket the worker may delete under | *(empty)* | No |
 | `STORAGE_S3_REGION` | Signing region (`auto` for R2) | `auto` | No |
 | `STORAGE_S3_TIMEOUT_SECONDS` | Per-call timeout; a hung delete is recorded in `pending_body_deletions` and retried later instead of stalling retention | `30` | No |
+| `STORAGE_FILESYSTEM_ROOT` | Root the worker may delete under on disk | `/data/bodies` | No |
+
+!!! warning "The worker deletes only inside the location you give it"
+    `STORAGE_S3_BUCKET` and `STORAGE_S3_PREFIX` (for S3) and
+    `STORAGE_FILESYSTEM_ROOT` (for disk) do not merely describe where bodies
+    are — they **fence** the worker. A stored body whose URI falls outside them
+    is skipped rather than deleted, and logged at WARN with a count for the run.
+
+    That fence is what keeps a misconfigured worker from deleting inside
+    somebody's [body store](../admin/body-stores.md), so set all three to the
+    same values the result-ingestor has. If `STORAGE_S3_ENDPOINT` is set with
+    no `STORAGE_S3_BUCKET`, the worker falls back to deleting wherever a body's
+    URI points and says so at startup with a WARN — the pre-0.4.33 behaviour,
+    kept so that an upgrade does not silently stop deleting, but not a
+    configuration to stay on.
 
 !!! warning "The endpoint variable is the on/off switch"
     `STORAGE_S3_ENDPOINT` has no default. Its **presence** enables S3 body
