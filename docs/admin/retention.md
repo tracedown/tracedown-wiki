@@ -303,7 +303,7 @@ the directory.
     the stored URL on every step that carries one. Rolling the schema back
     therefore turns every `in_place` body into "not stored", permanently — and
     those are exactly the bodies the platform never kept a copy of. See
-    [Upgrading](upgrading.md#body-stores-0434).
+    [Upgrading](upgrading.md#body-stores-0433).
 
 The destination depends on one variable. **The presence of `STORAGE_S3_ENDPOINT`
 is the on/off switch** — the worker builds an S3 client only if the endpoint is

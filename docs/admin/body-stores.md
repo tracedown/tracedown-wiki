@@ -333,4 +333,4 @@ concludes their bodies were deleted.
   what is not.
 - [Probe Agents](../install/agents.md#body-storage) — the agent side of the
   arrangement.
-- [Upgrading](upgrading.md#body-stores-0434) — what to set before the upgrade.
+- [Upgrading](upgrading.md#body-stores-0433) — what to set before the upgrade.
