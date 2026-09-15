@@ -259,9 +259,9 @@ the store rather than blocking, so in practice the blocker is either a live
 agent you should reassign first, or bodies.
 
 Bodies are the hard case, because they age out only if a window says so, and
-both windows can be switched off: `BODY_RETENTION_DAYS=-1` leaves a body to go
-with its result, and `RESULT_RETENTION_DAYS=-1` means the result never goes
-either. Which window applies depends on where the body ended up. A body an
+both windows can be switched off — one of them is off to begin with:
+`BODY_RETENTION_DAYS` defaults to `-1`, which leaves a body to go with its
+result, and `RESULT_RETENTION_DAYS=-1` means the result never goes either. Which window applies depends on where the body ended up. A body an
 `import` store handed over lives in the default store and expires on the body
 window like any other body there. A body in an `in_place` store is outside both
 windows — the platform never deletes from one — so an `in_place` store is

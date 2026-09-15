@@ -678,7 +678,7 @@ surface.
 | `REDIS_A_URL` | Operational Redis | `redis://localhost:6379` | No |
 | `REDIS_B_URL` | Cache Redis | `redis://localhost:6380` | No |
 | `RESULT_RETENTION_DAYS` | Raw probe result retention; `-1` keeps forever | `90` | No |
-| `BODY_RETENTION_DAYS` | Saved response body retention; `-1` leaves bodies to go with their results | `90` | No |
+| `BODY_RETENTION_DAYS` | Saved response body retention; `-1` leaves bodies to go with their results | `-1` | No |
 | `HOURLY_AGGREGATE_RETENTION_DAYS` | Hourly aggregate retention; `-1` keeps forever | `365` | No |
 | `AGENT_HEALTH_RETENTION_DAYS` | Agent health record retention; `-1` keeps forever | `90` | No |
 | `AUDIT_LOG_RETENTION_DAYS` | Audit log retention; `-1` keeps forever | `90` | No |
@@ -687,19 +687,30 @@ surface.
 
 Raw results are the bulk of the database and hourly aggregates are cheap, which
 is why they default to 90 and 365 days respectively — you keep a year of trend
-after the detail ages out. Setting `RESULT_RETENTION_DAYS=-1` disables deletion
-entirely and the table grows without bound; if you do, plan disk accordingly.
+after the detail ages out. Setting `RESULT_RETENTION_DAYS=-1` stops raw results being
+deleted by age at all and the table grows without bound; if you do, plan disk
+accordingly. It no longer stops bodies expiring — that is
+`BODY_RETENTION_DAYS`'s own window, below.
 
 Keep `RESULT_RETENTION_DAYS` identical to the gateway's value.
 
 `BODY_RETENTION_DAYS` (`worker.bodyRetentionDays`) is the worker's alone — the
 gateway does not read it, and the usage window it offers is still capped by
-`RESULT_RETENTION_DAYS`. It defaults to `90`, the same as the result window, so
-setting neither keeps the behaviour of releases before 0.4.35. Set it lower to
-shed the bodies, which are most of the bytes, while keeping the result history;
-setting it *higher* than the result window does nothing, because a body never
-outlives its result. See
+`RESULT_RETENTION_DAYS`. It defaults to `-1`, meaning the body window is off:
+the worker's body pass does not run and every body simply goes out with its
+result, which is what every release before 0.4.35 did. Set it to a number of
+days to shed the bodies, which are most of the bytes, while keeping the result
+history; setting it *higher* than the result window does nothing, because a body
+never outlives its result. See
 [Results and bodies age separately](../admin/retention.md#results-and-bodies-age-separately).
+
+`RESULT_RETENTION_DAYS` and `BODY_RETENTION_DAYS` both read a positive value as
+a number of days and any negative value as "never expire by age". `0` is not a
+value for either: the worker refuses to start, failing configuration load with
+`BODY_RETENTION_DAYS must not be 0 — use -1 to never expire by age, or a
+positive number of days`. If an older install set one of them to `0` to mean
+"keep forever", change it to `-1` before upgrading to 0.4.35. See
+[Keeping data forever](../admin/retention.md#keeping-data-forever).
 
 ### Job intervals
 

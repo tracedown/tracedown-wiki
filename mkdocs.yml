@@ -49,6 +49,15 @@ plugins:
         color: "#ffffff"
         font_family: Roboto
 
+# `--strict` turns warnings into build failures, but link validation is set to
+# INFO by default and anchors are not checked at all. Raising both to `warn`
+# makes a broken cross-page link or a stale `#anchor` fail the strict build
+# rather than ship as a dead link.
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+
 extra_css:
   - stylesheets/extra.css
 
