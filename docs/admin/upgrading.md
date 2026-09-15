@@ -67,6 +67,30 @@ docker compose logs tracedown-migrator
 It logs the number of migrations applied. Services starting at all is itself
 evidence the migration succeeded, given the gating above.
 
+## Response body retention (0.4.35)
+
+Release 0.4.35 gives saved response bodies a retention window of their own.
+The aggregate-worker reads `BODY_RETENTION_DAYS` (`worker.bodyRetentionDays`)
+alongside `RESULT_RETENTION_DAYS`, and it defaults to `90` — the same as the
+result window — so the upgrade changes nothing on its own: bodies go out with
+their results exactly as they did before.
+
+The reason to set it is that bodies are the expensive half of a result.
+`BODY_RETENTION_DAYS=7` against a 90-day result window sheds the megabytes after
+a week and keeps three months of timings, assertions and status. The window
+cannot extend a body's life — a body never outlives its result — so a value
+above `RESULT_RETENTION_DAYS` does nothing, and `-1` means "do not expire bodies
+by age", not "keep them forever". See
+[Retention & Aggregation](retention.md#results-and-bodies-age-separately).
+
+A body the new pass expires records `bodyExpired` as the reason it is
+unavailable, and the result page shows that in place of the body. It is
+deliberately distinct from `storeRemoved` and from a body that was never saved:
+the result is intact and the body was aged out on purpose. Nothing needs
+backfilling — the pass starts on the next retention tick. The bundled Compose
+files and `docker/deploy/.env.example` carry the variable next to
+`RESULT_RETENTION_DAYS`.
+
 ## Body stores (0.4.33)
 
 Release 0.4.33 adds [body stores](body-stores.md) — locations other than the

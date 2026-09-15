@@ -678,6 +678,7 @@ surface.
 | `REDIS_A_URL` | Operational Redis | `redis://localhost:6379` | No |
 | `REDIS_B_URL` | Cache Redis | `redis://localhost:6380` | No |
 | `RESULT_RETENTION_DAYS` | Raw probe result retention; `-1` keeps forever | `90` | No |
+| `BODY_RETENTION_DAYS` | Saved response body retention; `-1` leaves bodies to go with their results | `90` | No |
 | `HOURLY_AGGREGATE_RETENTION_DAYS` | Hourly aggregate retention; `-1` keeps forever | `365` | No |
 | `AGENT_HEALTH_RETENTION_DAYS` | Agent health record retention; `-1` keeps forever | `90` | No |
 | `AUDIT_LOG_RETENTION_DAYS` | Audit log retention; `-1` keeps forever | `90` | No |
@@ -690,6 +691,15 @@ after the detail ages out. Setting `RESULT_RETENTION_DAYS=-1` disables deletion
 entirely and the table grows without bound; if you do, plan disk accordingly.
 
 Keep `RESULT_RETENTION_DAYS` identical to the gateway's value.
+
+`BODY_RETENTION_DAYS` (`worker.bodyRetentionDays`) is the worker's alone — the
+gateway does not read it, and the usage window it offers is still capped by
+`RESULT_RETENTION_DAYS`. It defaults to `90`, the same as the result window, so
+setting neither keeps the behaviour of releases before 0.4.35. Set it lower to
+shed the bodies, which are most of the bytes, while keeping the result history;
+setting it *higher* than the result window does nothing, because a body never
+outlives its result. See
+[Results and bodies age separately](../admin/retention.md#results-and-bodies-age-separately).
 
 ### Job intervals
 
