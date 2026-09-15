@@ -258,8 +258,15 @@ which of the three — a used or expired token and a decommissioned agent releas
 the store rather than blocking, so in practice the blocker is either a live
 agent you should reassign first, or bodies.
 
-Bodies are the hard case, because with `RESULT_RETENTION_DAYS=-1` they never
-age out. The forcing form — **Delete and forget bodies** in the dashboard —
+Bodies are the hard case, because they age out only if a window says so, and
+both windows can be switched off — one of them is off to begin with:
+`BODY_RETENTION_DAYS` defaults to `-1`, which leaves a body to go with its
+result, and `RESULT_RETENTION_DAYS=-1` means the result never goes either. Which window applies depends on where the body ended up. A body an
+`import` store handed over lives in the default store and expires on the body
+window like any other body there. A body in an `in_place` store is outside both
+windows — the platform never deletes from one — so an `in_place` store is
+exactly the store whose bodies will still be blocking its deletion years from
+now. The forcing form — **Delete and forget bodies** in the dashboard —
 does the whole thing in one transaction: unassigns the store's agents, clears
 it off outstanding tokens, clears the stored URL on every step that pointed into
 it with the reason `storeRemoved`, and deletes the row. It is recorded in the
@@ -326,4 +333,4 @@ concludes their bodies were deleted.
   what is not.
 - [Probe Agents](../install/agents.md#body-storage) — the agent side of the
   arrangement.
-- [Upgrading](upgrading.md#body-stores-0434) — what to set before the upgrade.
+- [Upgrading](upgrading.md#body-stores-0433) — what to set before the upgrade.

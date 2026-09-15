@@ -35,7 +35,7 @@ production.
 |---|---|---|---|
 | `HourlyAggregationJob` | `WORKER_INTERVAL_HOURLY_AGGREGATION` | `900` | Rolls raw results into hourly buckets; pushes response-time percentiles to Redis B |
 | `DailyAggregationJob` | `WORKER_INTERVAL_DAILY_AGGREGATION` | `3600` | Daily rollups |
-| `RetentionJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Deletes raw results past `RESULT_RETENTION_DAYS`, and their stored bodies |
+| `RetentionJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Per organization: deletes raw results past `RESULT_RETENTION_DAYS` with the bodies still on them, then expires bodies past `BODY_RETENTION_DAYS` on the results it kept, over a time slice starting at a per-organization watermark |
 | `AggregateRetentionJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Deletes hourly aggregate rows past `HOURLY_AGGREGATE_RETENTION_DAYS`; keeps daily rollups |
 | `PurgeJob` | `WORKER_INTERVAL_PURGE` | `300` | Hard-deletes soft-deleted rows whose `purge_after` has passed, and their stored bodies |
 | `OutboxPurgeJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Trims consumed outbox rows |
@@ -71,7 +71,8 @@ rather than tuned; the second runs hourly. Since
 
 | Variable | Default | Applies to | Read by |
 |---|---|---|---|
-| `RESULT_RETENTION_DAYS` | `90` | Raw probe results and their bodies | aggregate-worker **and** api-gateway |
+| `RESULT_RETENTION_DAYS` | `90` | Raw probe results, and the bodies still attached to them | aggregate-worker **and** api-gateway |
+| `BODY_RETENTION_DAYS` | `-1` | Saved response bodies in the default store; they never outlive their result | aggregate-worker |
 | `HOURLY_AGGREGATE_RETENTION_DAYS` | `365` | Hourly aggregates | aggregate-worker |
 | `AGENT_HEALTH_RETENTION_DAYS` | `90` | Agent health-check history | aggregate-worker |
 | `AUDIT_LOG_RETENTION_DAYS` | `90` | Audit log entries | api-gateway **and** aggregate-worker |
@@ -92,23 +93,73 @@ the deletion of the service or result they refer to (the links are cleared);
 they are removed by this window, or immediately when their organization is
 purged.
 
+### Results and bodies age separately
+
+`RESULT_RETENTION_DAYS` and `BODY_RETENTION_DAYS` are two windows over the same
+rows, and they are separate because the two things are not the same size. A
+probe result is a few hundred bytes of timings, assertions and status; the
+response body behind it can be megabytes. Ninety days of results is cheap.
+Ninety days of bodies is usually what fills the disk or the bucket. Splitting
+the windows lets you shed the bulk and keep the history.
+
+A body never outlives its result. The result pass takes whatever bodies are
+still attached to the rows it deletes; the body pass then clears bodies older
+than `BODY_RETENTION_DAYS` off the rows it kept. So the effective body lifetime
+is the shorter of the two windows:
+
+| `RESULT_RETENTION_DAYS` | `BODY_RETENTION_DAYS` | A body lives for |
+|---|---|---|
+| `90` | `-1` (the default) | 90 days — the body pass never runs and the body goes with its result, exactly as before 0.4.35 |
+| `90` | `7` | 7 days, while the result keeps the full 90 |
+| `90` | `90` | 90 days — the body window expires nothing the result window would not have taken anyway |
+| `365` | `30` | 30 days of bodies under a year of results |
+| `-1` | `30` | 30 days, under results that are never deleted |
+| `-1` | `-1` | As long as the install lives |
+
+`BODY_RETENTION_DAYS` defaults to `-1`, so the body window is off until you turn
+it on: upgrading to 0.4.35 changes nothing at all, whatever your result window
+is — the body pass does not run and bodies go out with their results as they
+always have. A body window *longer* than the result window is equally
+uneventful, since the result takes the body with it first.
+
 ### Keeping data forever
 
-`RESULT_RETENTION_DAYS`, `HOURLY_AGGREGATE_RETENTION_DAYS`,
-`AGENT_HEALTH_RETENTION_DAYS`, `AUDIT_LOG_RETENTION_DAYS` and
-`NOTIFICATION_LOG_RETENTION_DAYS` treat `-1` as "keep forever". In practice the
-guard is `<= 0`, so `0` and any negative value also disable deletion:
+Every retention window is a whole number of days, and the two probe-data
+windows — `RESULT_RETENTION_DAYS` and `BODY_RETENTION_DAYS` — read it the same
+way:
 
-```kotlin
-if (defaultRetentionDays <= 0) {
-    log.debug("Retention disabled (resultRetentionDays={})", defaultRetentionDays)
-    return
-}
-```
+- **greater than zero** — expire at that age.
+- **less than zero** — never expire by age. `-1` is the documented spelling and
+  the one to use; any negative value behaves identically.
+- **zero** — not a value. The aggregate-worker refuses to start, failing
+  configuration load with `BODY_RETENTION_DAYS must not be 0 — use -1 to never
+  expire by age, or a positive number of days` (and the same message for
+  `RESULT_RETENTION_DAYS`). The container exits before a single job runs, so a
+  `0` is a stack that did not come up rather than data quietly kept or quietly
+  deleted.
 
-Use `-1` — it is the documented sentinel and it reads as intentional. Setting
-`RESULT_RETENTION_DAYS=0` expecting "delete everything immediately" does the
-exact opposite and keeps raw results forever.
+There is no single "retention is off" switch behind those two variables any
+more. Each pass tests its own effective window before it does any work: a result
+window that is not positive skips the result pass for that organization, a body
+window that is not positive skips the body pass, and only when neither window is
+positive does the job return without reading a row. Switching one window off
+leaves the other running — that is the whole point of the 0.4.35 split, and the
+reason `RESULT_RETENTION_DAYS=-1` no longer disables the job as a whole.
+
+`HOURLY_AGGREGATE_RETENTION_DAYS`, `AGENT_HEALTH_RETENTION_DAYS`,
+`AUDIT_LOG_RETENTION_DAYS` and `NOTIFICATION_LOG_RETENTION_DAYS` are the older
+windows and still take any value of `0` or below as "keep forever". Write `-1`
+in all of them regardless: it is the documented sentinel, it reads as
+intentional, and it is the only spelling that means the same thing in every
+window.
+
+"Forever" means less for bodies than it does for the other windows.
+`BODY_RETENTION_DAYS=-1` switches the body pass off; it does not pin the body in
+place. The body still goes when its result goes — aged out under
+`RESULT_RETENTION_DAYS`, or purged with a deleted service, project, workspace or
+organization. Keeping bodies indefinitely therefore takes *both* windows:
+`RESULT_RETENTION_DAYS=-1` **and** `BODY_RETENTION_DAYS=-1`, in which case plan
+for the bucket as well as for the table.
 
 !!! danger "RESULT_RETENTION_DAYS must match in two services"
     `RESULT_RETENTION_DAYS` is read by **both** the api-gateway and the
@@ -223,17 +274,49 @@ delete the rows that reference them, so the bodies do not outlive their results
 and leak — whether the rows age out or are purged with a deleted service,
 project, workspace or organization.
 
+After that, within the same tick and the same batch budget, `RetentionJob` runs
+a **body pass** over the rows the result pass kept. It runs per organization and
+it runs *second* on purpose: the result pass is the one that frees rows, so it
+gets the budget first and a busy body pass can never starve it.
+
+The body pass does not scan all of history. Each organization carries a
+watermark — the body cutoff the last completed pass reached — and the pass reads
+only the slice between it and today's cutoff, so a steady-state tick looks at
+the handful of results that crossed the window in the last hour rather than at
+every result ever stored. Inside that slice it takes the steps that still carry
+a platform-owned body, deletes the objects through the same confined client, and
+clears the stored URL on the step with `bodyExpired` as the reason the body is
+not there. The result rows are left alone — the timings, the assertions and the
+status all stay, and the dashboard says the body is no longer stored rather than
+implying it was never saved. Bodies in an `in_place` store are skipped, as they
+are everywhere else. With the window off — which is the default — the pass does
+not run at all and bodies go only with their rows, the pre-0.4.35 behaviour.
+Objects the store fails to delete are recorded for `BodyDeletionRetryJob`
+exactly as in the result pass.
+
+!!! warning "A body the fence refuses is left completely alone"
+    A delete the store *refuses* because the URI falls outside the worker's
+    bucket, prefix or root is not a delete that failed — it is the worker
+    telling you its fence does not match the ingestor's. The body pass treats it
+    as exactly that: the row is left untouched, the stored URL survives, nothing
+    is stamped `bodyExpired`, an ERROR is logged, and the pass stops for that
+    organization for the rest of the tick. It never clears a reference to an
+    object that is still sitting in the store. Fix
+    `STORAGE_S3_BUCKET`/`STORAGE_S3_PREFIX` or `STORAGE_FILESYSTEM_ROOT` to
+    match the ingestor's and the next tick proceeds.
+
 That covers the bodies the platform owns. A body written by an agent assigned a
 [body store](body-stores.md) is handled by the store's mode:
 
 | Where the agent wrote it | What happens to the body | Who deletes it |
 |---|---|---|
-| No store — the default store | Stays in the default store | The worker, on the windows above |
-| An `import` store | Copied into the default store as the result lands, and removed from the store it came from | The worker, on the windows above |
+| No store — the default store | Stays in the default store | The worker, on `BODY_RETENTION_DAYS` or with its result, whichever comes first |
+| An `import` store | Copied into the default store as the result lands, and removed from the store it came from | The worker, the same as any other default-store body |
 | An `in_place` store | Stays where the agent wrote it; the gateway reads it on demand | **Nobody.** The platform never deletes from an `in_place` store |
 
 So `import` stores change nothing here: by the time a result is queryable its
-body is in the default store, and it ages out with everything else.
+body is in the default store, and it ages out on the body window like everything
+else that lives there.
 
 `in_place` stores move the decision to whoever owns the bucket or the directory.
 The worker deletes the *rows* on the normal schedule and leaves the objects
@@ -255,7 +338,7 @@ the directory.
     the stored URL on every step that carries one. Rolling the schema back
     therefore turns every `in_place` body into "not stored", permanently — and
     those are exactly the bodies the platform never kept a copy of. See
-    [Upgrading](upgrading.md#body-stores-0434).
+    [Upgrading](upgrading.md#body-stores-0433).
 
 The destination depends on one variable. **The presence of `STORAGE_S3_ENDPOINT`
 is the on/off switch** — the worker builds an S3 client only if the endpoint is
@@ -313,9 +396,11 @@ set:
 | You want | Change |
 |---|---|
 | Longer raw history | Raise `RESULT_RETENTION_DAYS` **in both gateway and worker** |
-| Keep raw results forever | `RESULT_RETENTION_DAYS=-1` in both |
+| Keep raw results forever | `RESULT_RETENTION_DAYS=-1` in both gateway and worker; leave `BODY_RETENTION_DAYS=-1` too and the bodies stay with them |
 | An undo window for deletions | Raise `PURGE_RETENTION_DAYS` |
 | Less database growth | Lower `RESULT_RETENTION_DAYS`; long-range charts are unaffected |
+| Less body storage growth, same history | Lower `BODY_RETENTION_DAYS`; results, charts and assertions are unaffected |
+| Keep bodies for as long as their results | `BODY_RETENTION_DAYS=-1` — the default, and the body pass does not run at all |
 | Faster cleanup after deletes | Lower `WORKER_INTERVAL_PURGE` |
 
 Before raising raw retention, check whether the question you are trying to

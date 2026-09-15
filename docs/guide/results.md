@@ -209,6 +209,9 @@ rest of a run and you rarely need them.
 When a body is not available the UI says one of:
 
 - **Body not stored: {reason}** — saving was on, but this body was not kept.
+- **Body no longer stored: {reason}** — the body was saved and has gone since:
+  it expired under the body retention window, or the store that held it was
+  removed. The result itself is untouched.
 - **Body saving not enabled** — body saving is off for this probe.
 
 Bodies are the most expensive thing to keep and the most likely to contain data

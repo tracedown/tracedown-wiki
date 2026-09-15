@@ -67,6 +67,79 @@ docker compose logs tracedown-migrator
 It logs the number of migrations applied. Services starting at all is itself
 evidence the migration succeeded, given the gating above.
 
+## Response body retention (0.4.35)
+
+Release 0.4.35 gives saved response bodies a retention window of their own.
+The aggregate-worker reads `BODY_RETENTION_DAYS` (`worker.bodyRetentionDays`)
+alongside `RESULT_RETENTION_DAYS`, and it defaults to `-1` — the window is off
+unless you turn it on. The upgrade therefore changes nothing, whatever your
+result window is: the worker's body pass does not run, and bodies go out with
+their results exactly as they did before. The bundled Compose files and
+`docker/deploy/.env.example` do not set the variable; they carry a commented
+line next to `RESULT_RETENTION_DAYS` showing how.
+
+The reason to set it is that bodies are the expensive half of a result.
+`BODY_RETENTION_DAYS=7` against a 90-day result window sheds the megabytes after
+a week and keeps three months of timings, assertions and status. The window
+cannot extend a body's life — a body never outlives its result — so a value
+above `RESULT_RETENTION_DAYS` does nothing, and `-1` means "do not expire bodies
+by age", not "keep them forever". See
+[Retention & Aggregation](retention.md#results-and-bodies-age-separately).
+
+**Check for a `0` first.** Both probe-data windows now read `> 0` as days and
+any negative value as "never expire by age", and `0` is refused rather than
+treated as a synonym for `-1`: the worker fails configuration load with
+`BODY_RETENTION_DAYS must not be 0 — use -1 to never expire by age, or a
+positive number of days` (and the same for `RESULT_RETENTION_DAYS`) and the
+container exits before any job runs. If an older install set
+`RESULT_RETENTION_DAYS=0` to mean "keep forever", change it to `-1` in both the
+gateway and the worker before you upgrade, or the worker will not start.
+
+A body the new pass expires records `bodyExpired` as the reason it is
+unavailable. The result page shows that where the body would be, under the
+heading **Body no longer stored** rather than "Body not stored" — the same
+heading `storeRemoved` gets, because in both cases the body was saved and has
+gone since, which is not the same story as a body that was never kept. The
+result itself is intact. Nothing needs backfilling: the pass starts on the next
+retention tick after you set a window.
+
+!!! tip "Pre-build the index by hand on a large `probe_steps`"
+    The release adds one index, `idx_probe_steps_expirable_body` — a partial
+    index on `probe_steps (probe_result_id)` covering only the rows that carry a
+    platform-owned body — and the migration creates it as a plain
+    `CREATE INDEX IF NOT EXISTS`. It cannot say `CONCURRENTLY`: Flyway holds an
+    advisory lock inside a transaction for the whole run, and
+    `CREATE INDEX CONCURRENTLY` waits for every transaction that can see the
+    table to finish, including Flyway's own — it would not fail, it would hang.
+
+    A plain build takes a `SHARE` lock on `probe_steps` for the length of the
+    scan, and `probe_steps` is the largest table in the schema. On a small
+    install that is seconds. On a big one it blocks result ingestion for as long
+    as it takes, and since the migrator gates the whole stack, the upgrade waits
+    with it.
+
+    If your `probe_steps` is large, build the index by hand against the running
+    old release *before* you deploy 0.4.35:
+
+    ```sql
+    CREATE INDEX CONCURRENTLY idx_probe_steps_expirable_body
+        ON probe_steps (probe_result_id)
+        WHERE response_body_storage_url IS NOT NULL AND body_store_id IS NULL;
+    ```
+
+    `IF NOT EXISTS` then makes the migration a no-op and the upgrade is as quick
+    as any other. Check it finished valid before deploying — a cancelled
+    `CONCURRENTLY` build leaves an invalid index behind, which the migration will
+    happily skip:
+
+    ```sql
+    SELECT indisvalid FROM pg_index
+     WHERE indexrelid = 'idx_probe_steps_expirable_body'::regclass;
+    ```
+
+    If that returns `f`, `DROP INDEX idx_probe_steps_expirable_body;` and build
+    it again.
+
 ## Body stores (0.4.33)
 
 Release 0.4.33 adds [body stores](body-stores.md) — locations other than the
