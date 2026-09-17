@@ -130,6 +130,7 @@ result** tab.
 | `dispatch_queue_full`, `dispatch_backlog` | The scheduler's dispatch queue was full, or this service's previous tick was still waiting in it — the platform is over its probing capacity. |
 | `no_eligible_agent` | No agent was available to run the service: none is passing its health challenge, or none that the service is restricted to is. |
 | `agent_unreachable`, `agent_rejected` | Agents were available and every one of them was tried; none could be reached, or all of them turned the job away. |
+| `target_opted_out` | The target publishes a `_tracedown-noprobe` TXT record, so it was never dispatched. Nothing is wrong — see [Targets that opt out](writing-probes.md#targets-that-opt-out). |
 
 !!! warning "Skipped is not the same as failed"
     A skipped probe means Tracedown could not run the check. It says nothing

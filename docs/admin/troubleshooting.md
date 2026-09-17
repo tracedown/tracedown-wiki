@@ -317,6 +317,28 @@ dashboard advertises a window the worker has already pruned.
 **Fix.** Set `RESULT_RETENTION_DAYS` identically on both. See
 [Retention & Aggregation](retention.md).
 
+### A service is skipped with `target_opted_out`
+
+**Cause.** The target publishes a `_tracedown-noprobe` TXT record — under the
+host itself or under a parent name of it (the exact host is asked first, then
+each parent while the name still has more than two labels, up to three lookups).
+That record is the host's operator asking not to be probed, and Tracedown
+honours it: the tick is recorded as a skipped result naming the reason, nothing
+is dispatched to an agent, and **no alert is raised** — nothing is broken.
+Answers are cached for an hour, so a record removed at the target's end takes up
+to that long to stop mattering.
+
+**Fix.** If the zone is yours, verify the domain (Settings → Domains): a host
+covered by one of the organization's verified domains is never checked at all,
+because there the record is the organization's own. Otherwise the target has
+declined, and the answer is to stop monitoring it — or to talk to whoever
+publishes the record.
+
+An operator whose targets are all their own infrastructure can turn the check
+off with `PROBE_HONOUR_TARGET_OPT_OUT=false` on probe-scheduler. See
+[Targets that opt out](../guide/writing-probes.md#targets-that-opt-out) and
+[Configuration](../install/configuration.md#probe-scheduler).
+
 ### Probes against a domain are limited to 3 calls, save no bodies, and run no more than every 5 minutes
 
 **Cause.** `TRUSTED_DOMAIN_MODE` is `false` and the target domain is unverified.

@@ -489,6 +489,7 @@ Redis A, and the agents over mutual TLS.
 | `PROBE_MAX_TIMEOUT_MS` | System-wide maximum timeout | `300000` | No |
 | `PROBE_MAX_REDIRECTS` | Maximum redirect hops | `10` | No |
 | `PROBE_PAYLOAD_ENCRYPTION_ENABLED` | Fleet-wide kill switch for per-agent payload sealing | `true` | No |
+| `PROBE_HONOUR_TARGET_OPT_OUT` | Leave targets that publish a `_tracedown-noprobe` TXT record alone | `true` | No |
 
 `PROBE_MAX_TIMEOUT_MS` is a clamp, not a default — per-service overrides are
 capped at it, so it is the real ceiling on how long one probe can occupy a
@@ -507,6 +508,17 @@ dispatch worker.
     scheduler must be smaller, lower `SCHEDULER_DISPATCH_WORKERS` and let the
     pool follow. It is also why a stack-wide `DB_POOL_SIZE=10` is not the safe
     economy it looks like — see the [connection budget](#common-to-most-services).
+
+`PROBE_HONOUR_TARGET_OPT_OUT` is on by default and should stay on. A host
+publishing `_tracedown-noprobe.<host>` in its own DNS is its operator declining
+to be monitored from here; the scheduler then records the tick as `skipped` with
+the reason `target_opted_out` and dispatches nothing, without raising an alert.
+The record is looked up for the host and its parent names (at most three), and
+the answer is cached in Redis A for an hour. Hosts covered by an organization's
+**verified** domains are exempt — the organization operates those zones — so
+verifying a domain is the fix when a record turns up in a zone you run. Turn the
+check off only where every target is infrastructure you own. See
+[Targets that opt out](../guide/writing-probes.md#targets-that-opt-out).
 
 `PROBE_PAYLOAD_ENCRYPTION_ENABLED` turns nothing on. Whether a dispatch is
 sealed to the agent's certificate on top of mutual TLS is a **per-agent**

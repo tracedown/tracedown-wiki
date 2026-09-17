@@ -58,6 +58,38 @@ not in chained methods.
     Timeouts and redirect limits are set per call in the script's config object,
     because in a multi-step flow "the timeout" is rarely one number.
 
+## Targets that opt out
+
+A host can tell Tracedown not to probe it, and every Tracedown install honours
+that. The statement is a TXT record under the host being probed:
+
+```dns
+_tracedown-noprobe.api.example.com.  IN  TXT  "no probes please"
+```
+
+The value is not read — the record's presence is the whole statement. When it is
+there, the scheduler never dispatches the run: the tick is recorded as a
+`skipped` result with the reason `target_opted_out`, no agent touches the host,
+and no alert is raised, because nothing is broken. See
+[Reading Results](results.md#skipped-probes).
+
+The exact host is asked first, then each parent name while it still has more
+than two labels — `api.eu.example.com`, then `eu.example.com`, then
+`example.com` — so a zone can opt out once at its apex and cover everything
+under it. At most three names are asked per host, and answers are cached for an
+hour, so a newly published record takes up to that long to take effect.
+
+!!! tip "A domain you have verified is exempt"
+    A host covered by one of your organization's verified domains is never
+    checked at all. You operate that zone, so a record in it is your own and
+    cannot be somebody else declining — and verifying the domain is the fix if
+    you find a record in a zone you run. See
+    [Domains](../admin/troubleshooting.md).
+
+Operators can turn the check off with `PROBE_HONOUR_TARGET_OPT_OUT=false` on
+probe-scheduler — reasonable only where every target is infrastructure the
+operator owns. See [Configuration](../install/configuration.md#probe-scheduler).
+
 ## Assertions
 
 `.expect()` fails the run and stops. `.check()` records the failure and carries
