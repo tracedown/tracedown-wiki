@@ -602,6 +602,7 @@ run more than once — see [Scaling](../admin/scaling.md#replica-safety).
 | `DISPATCHER_POLL_INTERVAL_MS` | Outbox poll interval | `5000` | No |
 | `DISPATCHER_BATCH_SIZE` | Events per batch | `50` | No |
 | `DISPATCHER_CLAIM_LEASE_SECONDS` | How long a replica's claim on an outbox row is honoured | `120` | No |
+| `DISPATCHER_MAX_EVENT_AGE_MINUTES` | Age past which a notification that keeps failing is abandoned; `0` disables | `360` | No |
 | `DISPATCHER_STATUS_POP_TIMEOUT` | Status queue pop timeout, seconds | `5` | No |
 
 !!! danger "`PLATFORM_AES_KEY` must match the gateway's"

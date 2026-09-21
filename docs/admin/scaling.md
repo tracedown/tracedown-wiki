@@ -91,8 +91,47 @@ on purpose: a replica never claims a row while an older undelivered row for the
 same service is outstanding. That is what keeps a recovery notification from
 overtaking the failure it recovers from. Different services run fully in
 parallel — the fan-out is across services — but one service's events are always
-handled in sequence, and an event that cannot be delivered at all holds up that
-one service's later events until it succeeds.
+handled in sequence.
+
+### When a notification cannot be delivered at all
+
+Because one service's events are handled in sequence, an event that can never be
+delivered would otherwise sit at the head of its service's queue forever and
+every later alert for that service would queue behind it — silently. So the
+dispatcher eventually gives up on one.
+
+`DISPATCHER_MAX_EVENT_AGE_MINUTES` (default `360`, six hours) is the age past
+which a delivery that has **already failed** is abandoned: the event is marked
+handled without being delivered, logged at `error` with the service, the probe
+result, the age and the failing exception, and raised to the organization as a
+`notification_dropped` alert, so "why did I get no alert" has an answer in the
+warning log rather than being invisible. The events behind it then proceed, and
+are delivered or abandoned on their own merits in turn.
+
+!!! note "A dispatcher outage does not cost you alerts"
+    The age is only ever consulted **after** a delivery attempt has failed, so a
+    dispatcher that was simply down delivers its whole backlog when it comes
+    back, however old that backlog is. Nothing deliverable is dropped for being
+    old. What the setting bounds is how long an *undeliverable* event may block
+    its service — and, in the other direction, how long a systemic outage (the
+    database or Redis A unreachable, so every delivery fails alike) may last
+    before the oldest events start being abandoned. Six hours is comfortably
+    past any deploy, restart or dependency outage that gets attention, and short
+    enough that one poisoned event cannot silence a service for a day.
+
+The age is measured from when the **probe ran**, not when the row was written,
+so a backlog anywhere upstream ages an event the same way — which is the point:
+an alert about a probe from this morning has stopped being an alert.
+
+Setting it to `0` or less disables giving up entirely and restores unbounded
+blocking. Quiet hours and the per-recipient cooldown are unaffected either way:
+they filter recipients inside a *successful* delivery, so an event they silence
+is handled normally and never reaches this path.
+
+When a large backlog does drain, every queued failure for a service is delivered
+in sequence. For email that mostly collapses on its own — the per-recipient
+cooldown is opened by the first and drops the rest of the same kind — but
+webhooks are not cooldown-gated, so a bound endpoint receives the whole burst.
 
 ### Why metrics-service is not
 
