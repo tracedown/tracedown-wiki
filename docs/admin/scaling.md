@@ -15,7 +15,8 @@ wrong and you get duplicated work rather than an error message.
 ## Replica safety
 
 Not every service is safe to run more than once. The distinction is whether the
-service coordinates through Redis or simply assumes it is alone.
+service coordinates — through Redis, or through a claim in the database — or
+simply assumes it is alone.
 
 | Service | Replicas | Why |
 |---|---|---|
@@ -23,7 +24,7 @@ service coordinates through Redis or simply assumes it is alone.
 | aggregate-worker | **Exactly one** | No distributed lock. Jobs are plain coroutine loops. |
 | api-gateway | Multiple — safe | Stateless HTTP server. |
 | result-ingestor | Multiple — safe | Consumes the result queue with an atomic blocking pop; each result is taken by exactly one replica. |
-| notification-dispatcher | **Exactly one** | Polls the outbox without row locking; replicas race the same unpublished rows and double-deliver emails and webhooks. |
+| notification-dispatcher | Multiple — safe | Claims the outbox rows it reads in the same statement that reads them, with an expiring lease. Each row is delivered by exactly one replica. |
 | email-service | Multiple — safe | Consumes the email queue with an atomic blocking pop. |
 | metrics-service | **Exactly one** | The scrape side is stateless, but the nudge listener increments Redis counters, and pub/sub delivers each nudge to every replica — N replicas multiply every counter by N. |
 | realtime-service | Multiple — safe | Each replica fans pub/sub events out to its own connected sockets. |
@@ -54,19 +55,91 @@ duplicates every aggregation and retention pass — wasted database load, and
 retention deleting rows another replica is mid-aggregation over. Run exactly
 one. See [Retention & Aggregation](retention.md).
 
-### Why the dispatcher and metrics-service are not
+### Why the dispatcher is safe
 
-The notification-dispatcher polls the outbox for unpublished rows, delivers,
-and only then marks them published. There is no row locking and no consumer
-cursor coordination between processes, and the Redis nudge that wakes the
-poller is pub/sub — broadcast to every subscriber. Two replicas therefore race
-the same unpublished rows and both deliver: duplicate emails, duplicate webhook
-calls. Run one.
+The notification-dispatcher used to poll the outbox for unpublished rows,
+deliver, and only then mark them published, with no locking of any kind. Two
+replicas raced the same rows and both delivered — duplicate emails, duplicate
+webhook calls, silently. It now **claims** the rows it reads: one statement
+both selects and claims a batch (`claimed_by` / `claimed_at`, with
+`FOR UPDATE SKIP LOCKED`), so no row is ever visible as work to a second
+replica. The Redis nudge is still a broadcast, and that is now harmless: every
+replica wakes up, and they take disjoint batches.
 
-metrics-service has the same shape on its write path. Serving scrapes is
-stateless, but its nudge listener increments counters in Redis for every probe
-result it hears about, and every replica hears about every result. Two
-replicas double every counter the scrape endpoint later reports. Run one.
+The claim is a lease rather than a held lock, because delivery does network I/O
+and must not hold a database transaction open across it. It is released by
+marking the row published, and expires after `DISPATCHER_CLAIM_LEASE_SECONDS`
+(default 120) so a replica that is killed mid-batch does not strand its rows —
+another picks them up once the lease runs out.
+
+!!! note "Delivery is at-least-once"
+    It always was. A replica that dies between delivering and marking a row
+    published re-delivers it after the lease expires. What keeps that from
+    reaching anyone twice is `notification_log`: every recipient and webhook URL
+    dispatched to for a probe result is recorded before dispatch and checked
+    before dispatching again, so a redelivery completes what was missed and
+    repeats nothing.
+
+Two things stay per replica rather than per platform, because each replica runs
+its own webhook delivery pool: the circuit breaker that fast-fails a repeatedly
+failing endpoint, and the bounded delivery queue. A dead endpoint is probed once
+per replica per open window, and `DISPATCHER_WEBHOOK_QUEUE_CAPACITY` is the
+per-replica bound.
+
+One ordering rule is worth knowing about because it caps per-service throughput
+on purpose: a replica never claims a row while an older undelivered row for the
+same service is outstanding. That is what keeps a recovery notification from
+overtaking the failure it recovers from. Different services run fully in
+parallel — the fan-out is across services — but one service's events are always
+handled in sequence.
+
+### When a notification cannot be delivered at all
+
+Because one service's events are handled in sequence, an event that can never be
+delivered would otherwise sit at the head of its service's queue forever and
+every later alert for that service would queue behind it — silently. So the
+dispatcher eventually gives up on one.
+
+`DISPATCHER_MAX_EVENT_AGE_MINUTES` (default `360`, six hours) is the age past
+which a delivery that has **already failed** is abandoned: the event is marked
+handled without being delivered, logged at `error` with the service, the probe
+result, the age and the failing exception, and raised to the organization as a
+`notification_dropped` alert, so "why did I get no alert" has an answer in the
+warning log rather than being invisible. The events behind it then proceed, and
+are delivered or abandoned on their own merits in turn.
+
+!!! note "A dispatcher outage does not cost you alerts"
+    The age is only ever consulted **after** a delivery attempt has failed, so a
+    dispatcher that was simply down delivers its whole backlog when it comes
+    back, however old that backlog is. Nothing deliverable is dropped for being
+    old. What the setting bounds is how long an *undeliverable* event may block
+    its service — and, in the other direction, how long a systemic outage (the
+    database or Redis A unreachable, so every delivery fails alike) may last
+    before the oldest events start being abandoned. Six hours is comfortably
+    past any deploy, restart or dependency outage that gets attention, and short
+    enough that one poisoned event cannot silence a service for a day.
+
+The age is measured from when the **probe ran**, not when the row was written,
+so a backlog anywhere upstream ages an event the same way — which is the point:
+an alert about a probe from this morning has stopped being an alert.
+
+Setting it to `0` or less disables giving up entirely and restores unbounded
+blocking. Quiet hours and the per-recipient cooldown are unaffected either way:
+they filter recipients inside a *successful* delivery, so an event they silence
+is handled normally and never reaches this path.
+
+When a large backlog does drain, every queued failure for a service is delivered
+in sequence. For email that mostly collapses on its own — the per-recipient
+cooldown is opened by the first and drops the rest of the same kind — but
+webhooks are not cooldown-gated, so a bound endpoint receives the whole burst.
+
+### Why metrics-service is not
+
+metrics-service has the shape the dispatcher used to have, on its write path.
+Serving scrapes is stateless, but its nudge listener increments counters in
+Redis for every probe result it hears about, and the nudge is pub/sub — every
+replica hears about every result. Two replicas double every counter the scrape
+endpoint later reports. Run one.
 
 ## Scheduler throughput
 
