@@ -84,11 +84,11 @@ configure separately.
 
 Quiet hours reuse the same recurrence builder as [maintenance
 windows](maintenance-windows.md), so the controls are the ones you already know
-from scheduling downtime. One difference is worth knowing if you set quiet
-hours through the API rather than the editor: a quiet-hours rule that omits its
-timezone evaluates in **UTC**, not in the organization's default timezone the
-way a maintenance window does. The editor always writes a timezone, so this
-only concerns rules created programmatically.
+from scheduling downtime. One difference is worth knowing if you set quiet hours
+[through the API](api-reference.md#silences) rather than the editor: a
+quiet-hours rule that omits its timezone evaluates in **UTC**, not in the
+organization's default timezone the way a maintenance window does. The editor
+always writes a timezone, so this only concerns rules created programmatically.
 
 !!! note "Quiet hours are not a silence entry"
     Quiet hours do not appear in the **Muted resources** list on the Silences

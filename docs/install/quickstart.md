@@ -94,7 +94,7 @@ you do not trust):
 
 | Port | Service | Serves |
 |---|---|---|
-| `${GATEWAY_PORT}` (20714) | api-gateway | REST API (`/api/v1`), health (`/ping`) |
+| `${GATEWAY_PORT}` (20714) | api-gateway | the dashboard's API (`/api/v1`), the [key-authenticated API](../guide/api.md) (`/api/public/v1`) and its description (`/api/openapi/public/v1.json`), health (`/ping`) |
 | `${REALTIME_PORT}` (20870) | realtime-service | WebSocket (`/ws`) |
 | `${METRICS_PORT}` (20850) | metrics-service | Prometheus scrape endpoint |
 

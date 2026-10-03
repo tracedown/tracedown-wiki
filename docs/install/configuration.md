@@ -185,11 +185,15 @@ deployments should leave it off.
 | `PASSWORD_MIN_DIGITS` | Minimum digits | `1` | No |
 | `PASSWORD_MIN_SPECIAL` | Minimum special characters | `1` | No |
 | `TOTP_ISSUER` | Name shown in authenticator apps | `Tracedown` | No |
-| `RATE_LIMIT_ENABLED` | Per-IP sliding-window limiting via Redis B | `true` | No |
+| `RATE_LIMIT_ENABLED` | Sliding-window rate limiting via Redis B (per address; per key on `/api/public`) | `true` | No |
 | `RATE_LIMIT_GENERAL_MAX` | Requests per window, general endpoints | `120` | No |
 | `RATE_LIMIT_GENERAL_WINDOW` | General window, seconds | `60` | No |
 | `RATE_LIMIT_AUTH_MAX` | Requests per window, auth endpoints | `15` | No |
 | `RATE_LIMIT_AUTH_WINDOW` | Auth window, seconds | `60` | No |
+| `RATE_LIMIT_API_MAX` | Requests per window, per API key, on the key-authenticated API (`/api/public`) | `300` | No |
+| `RATE_LIMIT_API_WINDOW` | API key window, seconds | `60` | No |
+| `RATE_LIMIT_API_FAILURE_MAX` | Requests per window, per address, whose token named no API key, or carried none | `30` | No |
+| `RATE_LIMIT_API_FAILURE_WINDOW` | Unknown-key window, seconds | `60` | No |
 | `TRUSTED_PROXIES` | Trusted proxy hops when deriving the client IP for rate limiting | `1` | No |
 | `API_CORS_ORIGINS` | Browser origins allowed to call the API, comma-separated | *(unset — no CORS headers)* | No — unless the dashboard is on another origin |
 
@@ -197,6 +201,18 @@ The password minimums compose rather than replace: the length floor is `8` *and*
 within it at least one uppercase, one digit and one special character must
 appear. Auth endpoints get a tighter budget than general traffic because they
 are the ones worth brute-forcing.
+
+The [key-authenticated API](../guide/api.md) under `/api/public` is exempt from
+the per-address general budget, and is metered per API key instead
+(`RATE_LIMIT_API_*`). Automation commonly shares one address — a CI fleet
+behind a single NAT — and a per-address budget would have every job behind it
+spend the others' requests. What is counted per address instead
+(`RATE_LIMIT_API_FAILURE_*`) is requests whose token names no key, or that
+carry none — the guard against guessing keys. Like the general budget,
+both API budgets fail open when Redis is unreachable, and
+`RATE_LIMIT_ENABLED=false` switches them off with the rest. The number of keys
+a user may hold is under [API keys](#api-keys). How a client sees both budgets
+is under [Rate limits](../guide/api.md#rate-limits).
 
 `TRUSTED_PROXIES` is how the gateway decides which
 `X-Forwarded-For` hop is the real client. The default of `1` matches the
@@ -392,6 +408,18 @@ Enabling a feature never fails for want of room.
 Deleting a variable frees its slot — the count is of live variables, not of
 everything ever created. A create beyond the cap is refused with
 `variable_limit_reached`.
+
+#### API keys
+
+| Variable | Purpose | Default | Required |
+|---|---|---|---|
+| `MAX_API_KEYS_PER_USER` | Most API keys one user may hold, across every organization | `20` | No |
+
+Every key a user still has in their list counts — revoked and expired ones too,
+until they are deleted — so the limit cannot be got round by creating and
+revoking keys in a loop. A create beyond it is refused with
+`api_key_limit_reached`. Values below `1` are ignored and the default applies.
+See [The API](../guide/api.md).
 
 #### Probe request limits
 

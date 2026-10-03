@@ -85,7 +85,7 @@ in dependency order. The stack publishes exactly three ports, all bound to
 
 | Port | Service | Serves |
 |---|---|---|
-| `20714` | api-gateway | REST API (`/api/v1`), agent enrolment (`/internal/agents/…`), liveness (`/ping`), readiness (`/health`) |
+| `20714` | api-gateway | the dashboard's API (`/api/v1`), the [key-authenticated API](../guide/api.md) (`/api/public/v1`) and its description (`/api/openapi/public/v1.json`), agent enrolment (`/internal/agents/…`), liveness (`/ping`), readiness (`/health`) |
 | `20870` | realtime-service | WebSocket (`/ws`) |
 | `20850` | metrics-service | Prometheus scrape endpoint |
 

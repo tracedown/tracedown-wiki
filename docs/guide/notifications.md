@@ -172,9 +172,8 @@ The body template is validated as JSON, and for methods that send a body it must
 contain `${text}` — the rendered notification text. Without it the request
 would deliver reliably and say nothing, a failure mode you would only discover
 during an incident. The editor blocks saving the webhook rather than let you
-find out then. (The API itself enforces only that the body is valid JSON — a
-webhook created programmatically without `${text}` is accepted, and delivers
-messages that say nothing.)
+find out then. (The gateway accepts any valid JSON body — only the editor
+insists on `${text}`.)
 
 ### Bindings
 

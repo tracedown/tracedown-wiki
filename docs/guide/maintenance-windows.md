@@ -116,9 +116,10 @@ The editor deliberately models a *small* subset of what an RRULE can express:
 one recurring range, daily or on chosen weekdays. That covers essentially all
 real maintenance schedules and keeps the control readable.
 
-If a service's window was set through the API to something outside that subset,
-the editor shows the mode **Custom (set via API)** and the Config view prints
-the raw rule in monospace instead of a friendly label. The rule is **passed
+If a service's window was set [through the API](api-reference.md#services) to
+something outside that subset, the editor shows the mode **Custom (set via
+API)** and the Config view prints the raw rule in monospace instead of a
+friendly label. The rule is **passed
 through untouched** — editing the service's name or schedule will not mangle it.
 Switching the mode away from Custom replaces it, and there is no undo, so do not
 touch it unless you mean to.

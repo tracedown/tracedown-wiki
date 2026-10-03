@@ -259,9 +259,24 @@ purges, and the failed group is retried on the next tick.
 Erasure is deliberately not scorched-earth. Purging a user account removes its
 sessions, reset tokens, recovery codes and memberships, but keeps audit log
 entries (with the actor link anonymized) and keeps resources the account
-created — API keys, presets, variables, bootstrap tokens — with their
-`created_by` cleared: they belong to the organization, not the person. An
-account that still *owns* an organization is never purged; the job logs an
+created — presets, variables, bootstrap tokens — with their `created_by`
+cleared: they belong to the organization, not the person.
+
+API keys are the exception, because a key is not something the person made for
+the organization — it *acts as* the person. A key already stops working once its
+user can no longer act in its organization, and it is revoked when that
+membership ends, whether the member was removed or closed their account. When
+the account is purged, the key rows that are left have their `created_by`
+cleared like everything else, and a key with no user to act as authenticates
+nothing; the organization's key list shows them as belonging to a deleted
+account until someone deletes them. A soft-deleted account handed to a new
+person by an invite has the previous holder's keys revoked and deleted first,
+along with their sessions and recovery codes, so nothing of theirs shows up in
+the new holder's list or counts against the new holder's limit. Deleted keys
+follow the usual `purge_after` schedule, and purging an organization removes
+its keys outright.
+
+An account that still *owns* an organization is never purged; the job logs an
 error and keeps it until ownership is transferred or the organization is
 deleted. Purging an organization takes everything org-scoped with it, including
 its groups, permissions, webhook bindings, notification history and audit log;

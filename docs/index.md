@@ -63,9 +63,12 @@ actually saw, not just pass/fail.
 - **History and aggregation** — every run stored with its steps; hourly and
   daily rollups keep long windows cheap. Retention is yours to set.
 - **Access control** — organizations, workspaces, projects, and services, with
-  per-section permissions, groups, invites, API keys, and TOTP two-factor.
+  per-section permissions, groups, invites, and TOTP two-factor.
 - **Metrics out** — a Prometheus scrape endpoint and Grafana integration, so
   Tracedown's data lands next to the rest of your observability stack.
+- **Automation API** — per-user API keys, each acting as its member in one
+  organization, read or read-and-write, against a versioned HTTP API with an
+  OpenAPI description.
 
 ## Where to start
 

@@ -310,7 +310,8 @@ Opening a result's response body reads it through the store, and an `in_place`
 body is always returned as **content** rather than a redirect to a presigned
 URL — so a store you own never has to be given CORS rules for the dashboard.
 Bodies are capped at 32 MiB; over that the read is refused with
-`body_too_large`.
+`body_too_large`. The key-authenticated API serves bodies inline up to 4 MiB;
+over that it answers `body_too_large` too.
 
 Two answers say different things and want different responses:
 

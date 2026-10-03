@@ -60,4 +60,5 @@ assertion it relates to. See [Notifications](notifications.md) for why.
 | [Silences & Quiet Hours](silences.md) | The alerts are reaching you too often, or at 3am. |
 | [Maintenance Windows](maintenance-windows.md) | You have planned downtime and don't want it recorded as an outage. |
 | [Users & Permissions](users-and-permissions.md) | Someone else needs in, or needs to stop getting paged. |
-| [Your Account](account.md) | Two-factor, sessions, password, personal settings. |
+| [Your Account](account.md) | Two-factor, sessions, password, API keys, personal settings. |
+| [The API](api.md) | A script, a pipeline or an agent should do what you do in the dashboard. |

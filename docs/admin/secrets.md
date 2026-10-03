@@ -32,6 +32,7 @@ the mechanics.
 | Email provider credentials | Provider-issued | Outbound mail |
 | Object store credentials | Provider-issued | Saved response bodies — the platform's own store, from the environment, and each body store's, from the database |
 | Agent bootstrap token | 64 hex characters, generated | One-time agent enrolment |
+| API key | `td_` + 43 base64url characters, generated | Calls to the key-authenticated API |
 
 ### PLATFORM_AES_KEY
 
@@ -192,6 +193,23 @@ certificate, so its window of usefulness to an attacker is deliberately about
 as long as it takes you to paste it into an agent's environment. See
 [Probe Agents](../install/agents.md) and
 [Certificate Authority](certificate-authority.md).
+
+### API keys
+
+An API key is `td_` followed by 43 base64url characters — 32 bytes from a secure
+random generator. Like a session token it is stored only as a SHA-256 digest, in
+the `api_keys` table, beside its first eleven characters (`td_` plus eight) so a
+person can tell their keys apart. The key itself is shown once, in the response
+that creates it, and cannot be recovered afterwards by anyone — the holder
+included. A salted hash such as bcrypt would buy nothing on a 256-bit random
+token and would make the per-request lookup impossible, which is why keys use
+the same scheme as sessions.
+
+None of the other secrets on this page protect keys, so rotating them neither
+breaks nor revokes any. A key is cut off by revoking or deleting it — your own
+under [Your Account](../guide/account.md#api-keys), someone else's under
+[API key oversight](../guide/users-and-permissions.md#api-key-oversight). See
+also [The API](../guide/api.md).
 
 ## The shipped development values
 

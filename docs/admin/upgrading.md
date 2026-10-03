@@ -67,6 +67,57 @@ docker compose logs tracedown-migrator
 It logs the number of migrations applied. Services starting at all is itself
 evidence the migration succeeded, given the gating above.
 
+## API keys and the key-authenticated API (0.4.48–0.4.49)
+
+Release 0.4.48 makes API keys a working credential and opens the
+[key-authenticated API](../guide/api.md) at `/api/public/v1`; release 0.4.49
+fills it with the resource endpoints and serves its description at
+`/api/openapi/public/v1.json`. Keys are now created by each member for
+themselves under **My account → API keys**, and act as that member. That tab
+ships in dashboard 0.2.37; upgrade the dashboard to it together with the
+backend. Upgrade straight to 0.4.49: on 0.4.48 alone the key dialog's link to
+the API description leads nowhere.
+
+**Every existing API key is revoked by the migration.** The rows written before
+this release hold hashes that can never be matched — no earlier build ever
+authenticated a request with one — so the migration marks every one of them
+revoked rather than list them as usable. They stay visible as revoked until
+someone deletes them, and until then they count against the key limit of the
+member who created them — an administrator who created keys for several
+pipelines may already be at the limit. Tell anyone who holds a key to create a
+new one under **My account → API keys** after the upgrade; there is nothing to
+convert. The revoked leftovers are deleted by the member who created them,
+under **My account → API keys**, or by anyone with Settings Write, under
+**Settings → API keys**.
+
+**The new environment variables are optional.** The gateway reads
+`RATE_LIMIT_API_MAX` / `RATE_LIMIT_API_WINDOW` (300 requests per 60 seconds per
+key), `RATE_LIMIT_API_FAILURE_MAX` / `RATE_LIMIT_API_FAILURE_WINDOW` (30 requests per
+60 seconds per address whose token names no key, or that carry none) and `MAX_API_KEYS_PER_USER` (20). The
+defaults apply when they are unset; `docker/deploy/.env.example` carries them
+commented out. See [Configuration](../install/configuration.md#security) and
+[API keys](../install/configuration.md#api-keys).
+
+**Let the new paths through your proxy.** If the web server in front of the
+gateway passes only an allowlist of paths, add `/api/public/` for the API and
+`/api/openapi/` for its description. A stack that forwards all of `/api/` needs
+nothing.
+
+**The schema changes.** Three migrations: 0.4.48 adds two columns and two indexes to
+`api_keys`, and one nullable column to `org_audit_log`; 0.4.49 removes
+duplicate webhook bindings — two bindings of the same webhook to the same
+resource, which fired it twice — keeping the oldest, and adds a unique index so
+they cannot recur. The undo of that last one does not bring the duplicates
+back. There is no other backfill beyond the key revocation above.
+
+!!! warning "A rollback revokes every key"
+    The undo script for the key migration revokes every key, including ones
+    created after the upgrade. Rolling back and forward again therefore means
+    everyone creates their keys again. The undo of the audit-log column folds
+    each entry's key id into its comment first, so the log keeps saying which
+    key an action came through. See
+    [Rolling back the schema](#rolling-back-the-schema).
+
 ## Response body retention (0.4.35)
 
 Release 0.4.35 gives saved response bodies a retention window of their own.

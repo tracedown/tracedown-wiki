@@ -42,7 +42,7 @@ ordered — Write implies Read, Read implies None — and are stored numerically
 | Section | What it covers |
 |---|---|
 | **Users** | The members area. Read views members, groups and their permissions; Write invites users, manages groups and edits permissions. |
-| **Settings** | Infrastructure-level configuration: probe agents, organization variables, API keys, the audit log and the warning log. Read views them; Write manages them. |
+| **Settings** | Infrastructure-level configuration: probe agents, organization variables, oversight of the API keys acting in the organization, the audit log and the warning log. Read views them; Write manages them — for API keys that means revoking and deleting them, since each member creates their own under [My account](account.md#api-keys). |
 | **Domains** | Read views verified domains; Write adds and removes them. |
 | **Webhooks** | Read views webhook endpoints; Write creates and edits them. |
 | **Notifications** | The notification templates surface under Infrastructure. Read views it; Write manages templates and their project bindings. |
@@ -222,7 +222,12 @@ You keep your membership and your permissions; you lose owner status.
 toggle. Turning it on takes effect immediately: every member without 2FA is
 blocked — existing sessions included — until they enrol, and they are walked
 through enrolment at the login screen. Nobody's account is lost, but nobody
-proceeds without an authenticator from that moment on.
+proceeds without an authenticator from that moment on. A group can require it
+too, for its own members only — the group setting that says members of this
+group must set up TOTP to sign in. Whichever requires it, the organization or a
+group the member belongs to, API keys acting as those members are refused too,
+with `totp_enrollment_required`, until the member enrols — automation running
+on such a key stops at once.
 
 See [Your Account](account.md) for what enrolment looks like from the member's
 side, including recovery codes.
@@ -234,8 +239,9 @@ The audit log records who did what. It is a table of **Time**, **Actor**,
 than a person are attributed to **System**. Rows expand to a detail view
 carrying the change payload, or a note that no additional detail was recorded.
 
-Three filters narrow it down: **Action** (free text — type `delete` to see every
-deletion), **Entity type**, and **Actor**.
+Four filters narrow it down: **Action** (free text — type `delete` to see every
+deletion), **Entity type**, **Actor**, and **API key** — one key, or **Any API
+key** for everything that came through the API.
 
 What makes it more than a compliance checkbox is that entries record **diffs**,
 not just event names. In particular, **probe script changes are recorded as
@@ -244,6 +250,41 @@ means the audit log doubles as reviewable history for your probe scripts: when a
 service starts failing after an edit, you can see the exact lines that changed
 and who changed them. See [Writing Probes](writing-probes.md) for the scripts
 themselves.
+
+### Actions taken through an API key
+
+An action taken through the [API](api.md) is recorded against the member the key
+acts as, like anything they do in the dashboard, with the key named beside
+them: the Actor column reads *via key* and the key's name, or *via a deleted API
+key* once the key has been purged.
+
+## API key oversight
+
+Members with Settings **Read** can see every key acting in the organization;
+with Settings **Write** they can also revoke and delete them.
+
+**Settings → API keys** lists every key that acts in the organization, grouped
+by the member it acts as, with its name, its first characters, its access
+level, its state, when it was last used and when it expires. Members create keys
+for themselves, under [My account → API keys](account.md#api-keys); nobody can
+create a key that acts as someone else, so there is no create button here. You
+can filter the list by member and by key prefix — the prefix is what to search
+for when a key turns up somewhere it should not be. The states are the ones a
+member sees on their own keys (see [Key states](account.md#key-states)), plus
+**Deleted account**: the account the key acted as has been erased, so the key
+can never be used again and is only waiting to be deleted.
+
+**Revoke** cuts a key off at once and cannot be undone; **delete** removes it
+from the list. Both are hold-to-confirm. Revoke rather than delete while you
+investigate: a revoked key stays in the list, and each row's activity link
+opens the audit log filtered to that key. A deleted key leaves this list, and
+with it the link; its entries stay in the audit log, under its name until the
+key is purged and as *a deleted API key* after that.
+
+A key never needs revoking because its member's access changed: it can do no
+more than its member can at the moment of each request, so demoting the member
+demotes the key. Removing a member from the organization revokes every key they
+held in it, so a later re-invite does not bring the old keys back.
 
 ## Warning log
 

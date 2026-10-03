@@ -110,6 +110,9 @@ nav:
       - Maintenance Windows: guide/maintenance-windows.md
     - Users & Permissions: guide/users-and-permissions.md
     - Your Account: guide/account.md
+    - The API:
+      - guide/api.md
+      - API Reference: guide/api-reference.md
   - Administration:
     - admin/index.md
     - Security:
