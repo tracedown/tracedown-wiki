@@ -67,15 +67,15 @@ docker compose logs tracedown-migrator
 It logs the number of migrations applied. Services starting at all is itself
 evidence the migration succeeded, given the gating above.
 
-## API keys and the key-authenticated API (0.4.48–0.4.49)
+## API keys and the key-authenticated API (0.4.49–0.4.50)
 
-Release 0.4.48 makes API keys a working credential and opens the
-[key-authenticated API](../guide/api.md) at `/api/public/v1`; release 0.4.49
+Release 0.4.49 makes API keys a working credential and opens the
+[key-authenticated API](../guide/api.md) at `/api/public/v1`; release 0.4.50
 fills it with the resource endpoints and serves its description at
 `/api/openapi/public/v1.json`. Keys are now created by each member for
 themselves under **My account → API keys**, and act as that member. That tab
-ships in dashboard 0.2.37; upgrade the dashboard to it together with the
-backend. Upgrade straight to 0.4.49: on 0.4.48 alone the key dialog's link to
+ships in dashboard 0.2.38; upgrade the dashboard to it together with the
+backend. Upgrade straight to 0.4.50: on 0.4.49 alone the key dialog's link to
 the API description leads nowhere.
 
 **Every existing API key is revoked by the migration.** The rows written before
@@ -103,8 +103,8 @@ gateway passes only an allowlist of paths, add `/api/public/` for the API and
 `/api/openapi/` for its description. A stack that forwards all of `/api/` needs
 nothing.
 
-**The schema changes.** Three migrations: 0.4.48 adds two columns and two indexes to
-`api_keys`, and one nullable column to `org_audit_log`; 0.4.49 removes
+**The schema changes.** Three migrations: 0.4.49 adds two columns and two indexes to
+`api_keys`, and one nullable column to `org_audit_log`; 0.4.50 removes
 duplicate webhook bindings — two bindings of the same webhook to the same
 resource, which fired it twice — keeping the oldest, and adds a unique index so
 they cannot recur. The undo of that last one does not bring the duplicates

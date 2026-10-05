@@ -3,8 +3,8 @@ description: "The Tracedown API for scripts, pipelines and agents: API keys, aut
 ---
 # The API
 
-!!! note "Tracedown 0.4.49 and later"
-    This page describes the API as served from release 0.4.49 on. Release 0.4.48
+!!! note "Tracedown 0.4.50 and later"
+    This page describes the API as served from release 0.4.50 on. Release 0.4.49
     serves only `GET /key` under `/api/public/v1`.
 
 Everything you do to a service in the dashboard — create it, give it a script,

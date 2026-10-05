@@ -3,8 +3,8 @@ description: "Every endpoint of the Tracedown API v1 under /api/public/v1: metho
 ---
 # API Reference
 
-!!! note "Tracedown 0.4.49 and later"
-    This page describes the API as served from release 0.4.49 on. Release 0.4.48
+!!! note "Tracedown 0.4.50 and later"
+    This page describes the API as served from release 0.4.50 on. Release 0.4.49
     serves only `GET /key` under `/api/public/v1`.
 
 Every endpoint of the [key-authenticated API](api.md), version 1 — 72 in all,
