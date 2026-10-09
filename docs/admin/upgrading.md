@@ -67,6 +67,105 @@ docker compose logs tracedown-migrator
 It logs the number of migrations applied. Services starting at all is itself
 evidence the migration succeeded, given the gating above.
 
+## Run handles, idempotency and the event feed (0.4.59–0.4.60)
+
+Release 0.4.59 gives a run asked for through the API a handle (`runId`) to
+follow it by, and adds result filters, the raw body download, script
+validation, `Idempotency-Key` on every `POST`, and agent health on
+`GET /agents`. Release 0.4.60 adds script presets, notification templates, the
+warning log and the event feed to the API. Everything is additive: no route or
+field a client already uses changes. See [The API](../guide/api.md).
+
+**The schema changes.** Four migrations, two per release, each run under
+`SET LOCAL lock_timeout = '5s'`: behind a long transaction they fail fast
+instead of queueing every writer behind them, and the migrator can simply be
+run again.
+
+- 0.4.59 creates `run_requests`, one row per run asked for, and adds two
+  columns to `probe_results`: `trigger` (`NOT NULL DEFAULT 'schedule'`) and a
+  nullable `run_id`. On PostgreSQL 11 and later both are catalogue changes:
+  the big table is not rewritten, and every existing result reads as
+  `schedule`.
+- 0.4.60 adds three columns to `outbox` — `xid`, the writing transaction;
+  `organization_id`; and `inserted_at`, when the row was written — each added
+  without a default and given one afterwards, so no row is rewritten and
+  existing rows keep nulls. It creates the one-row `outbox_retention`, and a
+  partial index on `outbox (organization_id, xid, seq)`.
+
+**On a large outbox, build the index first.** The index migration is a plain
+`CREATE INDEX`, which holds a lock that blocks writes to the outbox — every
+result ingested — while it scans. The outbox is trimmed to 7 days, so this is
+usually short. If yours is large, build the index by hand before deploying,
+outside a transaction; the migration then finds it and does nothing:
+
+```sql
+CREATE INDEX CONCURRENTLY idx_outbox_organization_feed
+    ON outbox (organization_id, xid, seq)
+    WHERE organization_id IS NOT NULL;
+```
+
+The migration cannot do this itself: `CREATE INDEX CONCURRENTLY` waits for
+every transaction that can see the table, including the one Flyway holds
+across its whole run, so it would hang. If a concurrent build fails part-way,
+drop the invalid index it leaves and run it again.
+
+**Deploy in this order: the migrator; then result-ingestor, aggregate-worker,
+probe-scheduler and notification-dispatcher; then api-gateway.** A single
+`docker compose up -d` restarts everything after the migrator at once, which is
+fine. The order matters when you roll services one at a time, or run replicas:
+
+- **The ingestor before the scheduler.** A new scheduler records skipped rows
+  with new `run_*` reasons; an older ingestor takes them for a capacity
+  problem and raises a banner.
+- **The worker before the gateway.** The 0.4.60 purge moves the event feed's
+  retention mark as it deletes; an older one deletes without moving it, and a
+  feed cursor could pass rows it deleted without being told. The 0.4.59 worker
+  is also what purges old run requests.
+- **Every service that writes to the outbox before the gateway.** Outbox rows
+  written by a service still on an older release carry no organization, and
+  the feed never delivers them. The feed is new, so nothing is lost but the
+  rollout window — but the gateway is best last.
+
+While versions are mixed, runs keep running, without their handles:
+
+- a new gateway with an old scheduler: nobody hears the new run channel, the
+  gateway falls back to the old one, and the old scheduler runs the run as it
+  always did — not filed under its id, so its handle reads `expired` after the
+  bound;
+- an old gateway with a new scheduler: the run is made as a manual run with
+  no id;
+- scheduler replicas of both versions: a run waiting behind a lock an old
+  replica holds is made without its id, and its handle expires;
+- an old ingestor ignores the run's id and trigger: the handle still finds the
+  result filed under the id, but `trigger=manual` does not, and the run is not
+  settled in `run_requests`.
+
+Results recorded before 0.4.59, or during the mixed window, read as
+`trigger` `schedule`.
+
+**The new environment variables are optional.** The gateway now reads
+`PROBE_DEFAULT_TIMEOUT_MS`, the scheduler's variable — set it on both, to the
+same value, if you set it at all — and `RUN_REQUEST_EXPIRY_SECONDS` and
+`IDEMPOTENCY_ORG_BUDGET_BYTES`. Every service with a database pool now asks
+PostgreSQL to end sessions left idle inside a transaction for 60 seconds
+(`DB_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS`, `0` for no limit). The
+result-ingestor now reads `MAX_VARS_PER_RESOURCE` as well, to cap the keys one
+run's writeback may write; if you set it on the gateway, set it on the ingestor
+too. See
+[Configuration](../install/configuration.md#run-handles-and-idempotent-requests).
+
+**Give long-polls 30 seconds.** `GET /api/public/v1/events` can hold a request
+open for up to 30 seconds. The `nginx.conf` and `apache.conf` that ship with
+the deploy stack, and the servers' own defaults, allow 60; a proxy or load
+balancer with a shorter read or idle timeout in front of the gateway must be
+raised to at least 30 seconds, plus a margin. See [Scaling](scaling.md#the-event-feed).
+
+**Rolling back.** The undo scripts for 0.4.59 say to roll the gateway,
+scheduler, ingestor and worker back to 0.4.58 first. The undo of the outbox
+columns needs the worker and gateway rolled back first, and voids every feed
+cursor ever handed out; clients start again from a fresh cursor. See
+[Rolling back the schema](#rolling-back-the-schema).
+
 ## API keys and the key-authenticated API (0.4.49–0.4.50)
 
 Release 0.4.49 makes API keys a working credential and opens the

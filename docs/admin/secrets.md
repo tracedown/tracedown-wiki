@@ -45,7 +45,11 @@ This is the one that matters. It is the AES-256 key used to encrypt:
 - non-secret encrypted variables (the "Variable" type) directly;
 - TOTP secrets.
 
-It is also the HMAC-SHA256 key for domain-verification challenges.
+It is also the HMAC-SHA256 key for domain-verification challenges, and the
+gateway derives from it the keys that seal the API's
+[event feed](../guide/api.md#event-feed) cursors (AES-256-GCM, with the
+organization bound in, so a cursor says nothing about the platform and works
+in no other organization).
 
 The length is enforced at runtime, not merely documented:
 
@@ -379,6 +383,10 @@ is what re-running is for.
       of that org's secret variables with it.
 
     There is no recovery path other than restoring the old key.
+
+    One consequence is harmless: every event-feed cursor sealed under the old
+    key answers 410 `cursor_expired`, with a fresh cursor in `details.oldest`,
+    and clients start again from it after taking a new snapshot.
 
 This is a real constraint and its shape is stated plainly here rather than
 dressed up with a procedure that does not exist. The key rotates where the

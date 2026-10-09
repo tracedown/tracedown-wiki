@@ -38,6 +38,7 @@ lets the Compose stack define them once and share them across containers.
 | `REDIS_A_URL` | Operational Redis (AOF) — outbox, sessions, queues | `redis://localhost:6379` | No — except realtime-service |
 | `REDIS_B_URL` | Ephemeral cache Redis — metrics, rate limits | `redis://localhost:6380` | No |
 | `DB_POOL_SIZE` | HikariCP maximum pool size | `10` | No |
+| `DB_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS` | Seconds a session may sit idle inside an open transaction before PostgreSQL ends it; `0` for no limit | `60` | No |
 | `JAVA_TOOL_OPTIONS` | JVM heap sizing in constrained containers | *(unset)* | No |
 
 Each service has its own default port, so a stock stack has no collisions:
@@ -70,6 +71,17 @@ email-service needs no Postgres at all — it is a pure queue consumer.
     [probe-scheduler](#probe-scheduler) below. Setting `DB_POOL_SIZE` once for
     the whole stack therefore silently caps the scheduler at a value its workers
     cannot live on.
+
+`DB_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS` is read by every service that opens a
+pool, the ones that pin their pool size included; the migrator manages its own
+connection and does not read it. It is sent as PostgreSQL's
+`idle_in_transaction_session_timeout` when each session opens — merged into the
+`options` a `DATABASE_URL` already names, if it names any. A transaction left
+open holds back vacuum and the API's [event feed](../guide/api.md#event-feed),
+which delivers nothing written after the oldest transaction still open on the
+server; the timeout ends one that a fault leaves idle. Sessions of other
+clients on the same server are not covered — see
+[Troubleshooting](../admin/troubleshooting.md#the-event-feed-delivers-nothing-new).
 
 !!! note "Connection budget — 103 idle, against a default of 100"
     HikariCP fills to its maximum eagerly and holds the connections idle for the
@@ -393,7 +405,7 @@ down rather than offering the same thing twice.
 
 | Variable | Purpose | Default | Required |
 |---|---|---|---|
-| `MAX_VARS_PER_RESOURCE` | Most variables one resource may hold | `100` | No |
+| `MAX_VARS_PER_RESOURCE` | Most variables one resource may hold. The result-ingestor reads it too — set it on both | `100` | No |
 
 Counted **separately per resource** — per organization, workspace, project,
 service and webhook — so a project at the cap does not stop its services having
@@ -404,6 +416,11 @@ and is the same number for every organization.
 System-managed variables are not counted against it: the defaults seeded at
 organization creation, and the companion variables a config toggle creates.
 Enabling a feature never fails for want of room.
+
+The result-ingestor applies the same number to a script's
+[writeback](../guide/variables.md#writeback): one run writes back at most that
+many keys, and the rest are ignored with a warning. Give the ingestor the same
+value as the gateway.
 
 Deleting a variable frees its slot — the count is of live variables, not of
 everything ever created. A create beyond the cap is refused with
@@ -420,6 +437,33 @@ until they are deleted — so the limit cannot be got round by creating and
 revoking keys in a loop. A create beyond it is refused with
 `api_key_limit_reached`. Values below `1` are ignored and the default applies.
 See [The API](../guide/api.md).
+
+#### Run handles and idempotent requests
+
+| Variable | Purpose | Default | Required |
+|---|---|---|---|
+| `PROBE_DEFAULT_TIMEOUT_MS` | The scheduler's per-request probe timeout, which the run handle's bound is derived from | `30000` | No — but keep it identical to the scheduler's |
+| `RUN_REQUEST_EXPIRY_SECONDS` | Seconds a run asked for may go without a result before its handle reads `expired` | *(unset — derived, `600`)* | No |
+| `IDEMPOTENCY_ORG_BUDGET_BYTES` | Bytes of remembered `Idempotency-Key` answers one organization may hold per 24 hours | `67108864` (64 MiB) | No |
+
+A run asked for with `POST /services/{id}/run` reads `pending` until its result
+is in, and `expired` once it has gone longer than this bound without one — see
+[Running a service now](../guide/api.md#running-a-service-now). Unset, the
+bound is derived from `PROBE_DEFAULT_TIMEOUT_MS`: twice the scheduler's
+execution lock for that timeout (the timeout plus 50 seconds) plus 60 seconds,
+and never under 600 — so 600 seconds for any timeout up to 220 seconds.
+`PROBE_DEFAULT_TIMEOUT_MS` is the scheduler's variable, read by the gateway as
+well for this; give both services the same value, or the gateway may call a run
+lost while the scheduler is still within its lock. `RUN_REQUEST_EXPIRY_SECONDS`
+replaces the derivation outright. For all three, values below `1` are ignored
+and the default applies.
+
+`IDEMPOTENCY_ORG_BUDGET_BYTES` bounds what the gateway keeps in Redis A for
+[idempotent requests](../guide/api.md#idempotency): kept answers (up to
+256 KiB each) and unknown outcomes, counted at their stored size, in a window
+of 24 hours from the first one counted. Once an organization has spent it, a
+request carrying a new key is refused with 429 `idempotency_limit_reached` until
+the window ends.
 
 #### Probe request limits
 
@@ -513,7 +557,7 @@ Redis A, and the agents over mutual TLS.
 | `SCHEDULER_DISPATCH_WORKERS` | Concurrent in-flight dispatches | `50` | No |
 | `SCHEDULER_DB_POOL_SIZE` | Overrides the derived JDBC pool size | *(unset — derived, `58`)* | No |
 | `TRUSTED_DOMAIN_MODE` | Skip domain-ownership checks (auto-verify all) | `false` | No |
-| `PROBE_DEFAULT_TIMEOUT_MS` | Per-request timeout when a service has no override | `30000` | No |
+| `PROBE_DEFAULT_TIMEOUT_MS` | Per-request timeout when a service has no override. The gateway reads it too — keep the two identical (see [Run handles](#run-handles-and-idempotent-requests)) | `30000` | No |
 | `PROBE_MAX_TIMEOUT_MS` | System-wide maximum timeout | `300000` | No |
 | `PROBE_MAX_REDIRECTS` | Maximum redirect hops | `10` | No |
 | `PROBE_PAYLOAD_ENCRYPTION_ENABLED` | Fleet-wide kill switch for per-agent payload sealing | `true` | No |
@@ -583,6 +627,7 @@ no Redis B — plus the body-storage settings below.
 | `DATABASE_URL` / `DATABASE_USER` / `DATABASE_PASSWORD` | Postgres connection | See common table | No |
 | `REDIS_A_URL` | Queue to consume from | `redis://localhost:6379` | No |
 | `STORAGE_FILESYSTEM_ROOT` | Root under which agent-written bodies are relocated — must match the agent's `PROBE_AGENT_STORAGE_DIR` | `/data/bodies` | No |
+| `MAX_VARS_PER_RESOURCE` | Most keys one run's writeback may write — the gateway's variable cap, see [Variables](#variables) | `100` | No |
 | `STORAGE_S3_ENDPOINT` | S3-compatible endpoint — presence enables S3 body relocation | *(unset)* | No |
 | `STORAGE_S3_ACCESS_KEY` / `STORAGE_S3_SECRET_KEY` | S3 credentials | *(empty)* | Yes, once the endpoint is set |
 | `STORAGE_S3_BUCKET` | Bucket for relocated bodies | *(unset)* | Yes, once the endpoint is set |

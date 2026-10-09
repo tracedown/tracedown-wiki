@@ -109,6 +109,15 @@ history, because anything already ingested is in Postgres, and it does not log
 anyone out — sessions live in Postgres too. Back it up if it is cheap to do so;
 do not lose sleep over the gap between snapshots.
 
+It also holds what the API keeps for a short while, all of it ephemeral and
+expiring on its own: the remembered answers of requests sent with an
+`Idempotency-Key` (24 hours), the slots of open event-feed reads, the claims
+scheduler replicas take on runs asked for, and the event feed's high-water
+mark (`feed:hw`). Losing them means a request repeated with an
+`Idempotency-Key` within its 24 hours can run a second time, so tell API
+clients that retry blindly; nothing else is lost. Restoring an old snapshot of
+Redis A buys nothing for these keys.
+
 ### Saved response bodies
 
 The `tracedown-bodies` volume is mounted at `/data/bodies` and shared between
@@ -152,7 +161,15 @@ Tracedown does at startup.
    current, so it is safe against a same-version restore. See
    [Database & Migrations](../install/database.md).
 
-4. **Verify before trusting it.** Log in, open a service with variables and
+4. **Tell API clients to start their event feeds again.** After a database
+   restore, every [event feed](../guide/api.md#event-feed) cursor answers 410
+   `cursor_expired`: the positions it names belong to the database's old
+   history. The feed notices from the cursor itself, or from the high-water
+   mark it keeps in Redis A. Keep Redis A as it is across the restore: with
+   the mark lost too, the feed can only notice a cursor that is ahead of the
+   restored database. Clients take a new snapshot and read on from `details.oldest`.
+
+5. **Verify before trusting it.** Log in, open a service with variables and
    confirm they resolve, and check that a probe actually dispatches. A probe
    run exercises variable decryption and the CA path together, which is the
    fastest way to prove the key matches. If agents fail to receive work, read

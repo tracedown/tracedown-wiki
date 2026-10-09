@@ -133,7 +133,11 @@ late.
 
 The script is written in the built-in Lace editor, which validates as you type.
 The editor also lets you load a saved **script template**, and save the current
-script to a `.lace` file or load one from disk. Writing the script itself is a
+script to a `.lace` file or load one from disk. A template's script is copied
+into the editor, not linked: changing the template later does not change the
+services made from it. Templates are organization-wide or belong to one
+workspace; the API calls them **presets**, and can list, save, change and
+delete them and create a service from one — see [The API](api-reference.md#presets). Writing the script itself is a
 subject of its own — see [Writing Probes](writing-probes.md). Values you do not
 want hardcoded (hosts, tokens, credentials) come from
 [Variables](variables.md).
@@ -245,7 +249,17 @@ The service panel header carries the actions you reach for between edits.
 Pausing is always permitted — you can always stop a noisy service, even if it is
 in a state where you could not have enabled it. **Run now** queues the run; the
 scheduler dispatches it asynchronously, so the result appears when it appears
-rather than the moment the toast does.
+rather than the moment the toast does. The result is marked as asked for
+rather than scheduled.
+
+A run asked for always leaves something in the history. If the scheduler cannot
+make it when it gets to it — the service was paused or lost its script in the
+meantime, it is inside its maintenance window, a run of it is already under
+way and its [queue policy](#queue-policy) runs nothing after it, or one is
+already waiting — the history shows a **skipped** run naming why (`run_*`
+reasons, see [Skipped probes](results.md#skipped-probes)) instead of nothing.
+Through the API, a run asked for comes with a handle to follow it by; see
+[Running a service now](api.md#running-a-service-now).
 
 Note the three ways of making a service stop bothering you, because they are not
 interchangeable. **Pause** stops probing entirely and indefinitely. A

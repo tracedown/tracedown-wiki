@@ -292,6 +292,62 @@ alone.
 
 **Fix.** Run exactly one replica. See [Retention & Aggregation](retention.md).
 
+### The event feed delivers nothing new
+
+API clients reading `GET /api/public/v1/events` get empty pages although results
+keep being recorded, and the gateway logs, at most once a minute:
+
+```text
+A transaction has been open for 412s (session 18342, application 'psql', database 'reporting'): the event feed delivers nothing written since it began until it ends
+```
+
+**Cause.** The feed delivers only what was written below the oldest transaction
+still open on the database server, so that a slow transaction's rows are never
+passed over. A transaction that has written something and stays open —
+anywhere on the server, in any database, including a prepared transaction —
+holds every organization's feed back until it ends. Nothing is lost: the
+events arrive once it does. The log line names the session's process id,
+application and database, or the prepared transaction's name.
+
+**Fix.** End the transaction: commit or roll it back in the client that holds
+it, or, if it is abandoned, `SELECT pg_terminate_backend(<pid>);` — or
+`ROLLBACK PREPARED '<name>';` for a prepared one. Tracedown's own services ask
+PostgreSQL to end their sessions after 60 seconds idle inside a transaction
+(`DB_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS`); give other clients of the same
+server the same protection, for instance with
+`ALTER ROLE reporting SET idle_in_transaction_session_timeout = '60s';`. A
+transaction that is busy rather than idle is not ended by that setting; a
+long batch job sharing the server will hold the feed back for as long as it
+runs. See [Configuration](../install/configuration.md#common-to-most-services).
+
+### Event-feed cursors answer `cursor_expired`
+
+**Cause.** One of three things, in order of likelihood: the cursor is older than
+the 7 days of events the outbox keeps; `PLATFORM_AES_KEY` changed, and the
+cursors were sealed under a key derived from the old one; or the database went
+back in time — a backup restored, a point-in-time recovery, a dump loaded
+elsewhere. After the last, the gateway logs once that *the event feed's
+positions do not belong to this database's history* and starts the feed again
+from the present.
+
+**Fix.** Nothing on the server. Clients take a new snapshot and read on from
+the cursor in the answer's `details.oldest`. See
+[The API](../guide/api.md#when-a-cursor-stops-working).
+
+### A run asked for stays `pending`, then reads `expired`
+
+**Cause.** No scheduler that knows run handles took it. During an upgrade, a
+scheduler older than 0.4.59 runs it without its id, so its result is not filed
+under the handle; a scheduler that could not reach Redis A to claim the run
+does not run it at all. The handle reads `expired` after the gateway's bound,
+10 minutes by default. If no scheduler was subscribed at all, the handle says
+so at once instead: `skipped`, with `run_not_delivered`.
+
+**Fix.** Bring every scheduler to the release the gateway runs, and check that
+they share the gateway's Redis A. A run that did happen is still in the
+service's results, under another id. See
+[Upgrading](upgrading.md#run-handles-idempotency-and-the-event-feed-04590460).
+
 ### Emails are not sent
 
 **Cause, the common one.** `EMAIL_PROVIDER` defaults to `console`, which only

@@ -75,6 +75,12 @@ Once a service has metrics, a **Probe history** tab appears, listing runs 12 per
 page next to a detail pane. Each row carries a status dot, the status, the total
 response time, a relative timestamp, and the slug of the agent that ran it.
 
+Every result also records what started it: its schedule, or somebody asking for
+it with **Run now** or through the API. The [API](api.md#reading-results)
+returns this as `trigger` — `schedule` or `manual` — on each result, and can
+list one kind or the other. Runs recorded before release 0.4.59 all read as
+`schedule`.
+
 The agent slug is worth attention. If one agent's runs fail while another's
 succeed against the same service, you are looking at a network path or agent
 problem, not a broken API. The slug recorded is the agent that actually ran the
@@ -131,6 +137,17 @@ result** tab.
 | `no_eligible_agent` | No agent was available to run the service: none is passing its health challenge, or none that the service is restricted to is. |
 | `agent_unreachable`, `agent_rejected` | Agents were available and every one of them was tried; none could be reached, or all of them turned the job away. |
 | `target_opted_out` | The target publishes a `_tracedown-noprobe` TXT record, so it was never dispatched. Nothing is wrong — see [Targets that opt out](writing-probes.md#targets-that-opt-out). |
+| `run_service_inactive`, `run_script_missing` | A run somebody asked for (**Run now**, or the API) found the service switched off, deleted, or without a script by the time the scheduler took it up. |
+| `run_in_service_window` | A run asked for arrived while the service was in its [maintenance window](maintenance-windows.md). |
+| `run_already_running`, `run_already_queued` | A run asked for arrived while a run of the service was already under way, or already waiting to be dispatched. That run's result is in the history as usual. |
+| `run_held` | A run asked for was held back by the platform's operator, and waiting does not release it. |
+| `run_not_delivered` | A run asked for reached no scheduler at all — none was running, or none was listening — so nothing will run it. This one has no row in the history; it is what the API's [run handle](api.md#running-a-service-now) reports. |
+
+The `run_*` reasons answer a run somebody asked for. A scheduled tick that finds
+the same — the service off, in its window, already running — leaves nothing in
+the history, as it always has; a run asked for leaves a skipped row instead, so
+that whoever asked can see why nothing came. These are decisions, not faults:
+they raise no [system alert](notifications.md#system-alerts).
 
 !!! warning "Skipped is not the same as failed"
     A skipped probe means Tracedown could not run the check. It says nothing
