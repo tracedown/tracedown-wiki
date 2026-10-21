@@ -119,6 +119,36 @@ run, so `prev` in your script always refers to a real result.
     only. An error is not something your API did, so it is not drawn as one —
     which is why the bars can look short while the success rate is low.
 
+### Timeouts the probing agent caused
+
+A timeout is easy to blame on the wrong side: an endpoint that hung and a
+route between the agent and the endpoint that dropped packets both end with a
+timer running out. So when a call times out, the agent reads its operating
+system's record of that connection at that moment and says which it was:
+
+- **The endpoint's.** The endpoint acknowledged everything the agent sent and
+  nothing was lost on the way, yet no answer came, or it came too slowly. The
+  run is a `timeout` and is announced as one.
+- **The path's.** Packets were lost, or the connection was never accepted.
+  That alone does not say whose end of the route failed, so a second agent,
+  in another region where there is one, opens connections to the same
+  endpoint (connections and TLS handshakes only, never an HTTP request, so
+  nothing your script does is repeated). If it reaches the endpoint cleanly,
+  the trouble was on the first agent's side: the run is recorded as an
+  `error` and no alert is sent. If it cannot reach the endpoint cleanly
+  either, the run stays a `timeout` and is announced.
+- **The agent's own.** The run was stuck in the agent's own work, outside any
+  request. Recorded as an `error`.
+
+Only positive evidence that your endpoint was fine stops a timeout from being
+announced. When there is no second agent to ask, when the agent cannot read
+the connection (agents older than 0.3.10, or not on Linux), or when nothing
+conclusive was seen, the run is a `timeout`, as it always was.
+
+The reading and the second agent's answer are on the **Raw result** tab, under
+`attribution`. Behind a CDN or a load balancer the agent's peer is that front,
+so an origin that is slow behind a healthy edge counts as the endpoint's.
+
 ### Skipped probes
 
 A probe with a status of `skipped` was never handed to an agent at all. The
