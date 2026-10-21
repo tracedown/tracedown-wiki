@@ -142,7 +142,7 @@ system's record of that connection at that moment and says which it was:
 
 Only positive evidence that your endpoint was fine stops a timeout from being
 announced. When there is no second agent to ask, when the agent cannot read
-the connection (agents older than 0.3.10, or not on Linux), or when nothing
+the connection (agents older than 0.3.11, or not on Linux), or when nothing
 conclusive was seen, the run is a `timeout`, as it always was.
 
 The reading and the second agent's answer are on the **Raw result** tab, under
