@@ -129,7 +129,7 @@ three at one instance, and that is the correct default.
 
 | Role | Contents | Durability |
 |---|---|---|
-| **A** | Outbox nudges, sessions, work queues, pub/sub | AOF-persisted. Losing it loses queued work. |
+| **A** | Outbox nudges, sessions, work queues, pub/sub; the API's idempotency records, event-read slots and run claims | AOF-persisted. Losing it loses queued work. |
 | **B** | Metrics cache, rate limits | Ephemeral. Safe to lose; it refills. |
 | **C** | Resource-hierarchy cache | Optional. Disabled when `REDIS_C_URL` is empty. |
 
@@ -170,8 +170,12 @@ or a table.
    Its job ends there; it never writes probe results itself.
 7. **result-ingestor BRPOPs the result** and, in a single transaction, persists
    `probe_results` and `probe_steps`, updates `services.last_status`, and writes
-   `outbox` rows. A run that never reached an agent is persisted as `skipped`
-   instead: it is history only, changing no status and writing no outbox row.
+   `outbox` rows — the result's, saying whether it changed the service's status,
+   and one per variable its writeback created or changed. A run that never
+   reached an agent is persisted as `skipped` instead: it is history only and
+   changes no status. Its outbox row is of a type of its own,
+   `probe_result.skipped`, which no notification consumer claims, so it
+   notifies nobody; the API's event feed reads it.
 8. **notification-dispatcher consumes the outbox**, evaluates silences and
    quiet hours, and delivers email (via the Redis A email queue) and webhooks.
    (Maintenance windows never reach this stage — the scheduler suppresses
@@ -181,6 +185,32 @@ or a table.
 10. **aggregate-worker rolls up** hourly and daily buckets, enforces retention,
     purges soft-deleted rows, and cleans up sessions and agent health history.
 
+### Runs somebody asked for
+
+**Run now**, in the dashboard or the API, takes a path of its own into step 3.
+The gateway gives the run an id, records it in `run_requests` in the same
+transaction as its audit entry, and publishes `{serviceId, runId}` on the Redis
+A channel `probe:run`. Every scheduler replica hears it; the one that claims
+it first (`SET NX` on `run_claim:{runId}`, kept an hour) enqueues it, and the
+others drop it. A claim Redis does not answer is not made, and the run is not
+dispatched. The run goes through the same guards as a scheduled tick, and its
+result is filed under the run's id, with `trigger` `manual`. Where a scheduled
+tick that finds the service switched off, in its window or already running
+leaves no trace, a run asked for leaves a skipped row with a `run_*` reason,
+so whoever asked learns why.
+
+When nobody is subscribed to `probe:run`, the gateway publishes the bare service
+id on `probe:trigger` instead — what a scheduler from before run handles reads —
+so a mixed-version deploy still runs it, without the id. When Redis reports
+that no scheduler is subscribed to either, the gateway settles the request at
+once as skipped, `run_not_delivered`.
+
+The ingestor settles the request in the transaction that records the run's
+last result — on a service that runs on several agents at once, one result per
+agent — and writes a `run_request.settled` outbox row as it does. The gateway
+answers `GET …/runs/{runId}` from `run_requests` and the results filed under the
+id; `expired` is never stored, only computed from the request's age.
+
 ### Why the outbox
 
 Step 7 is the load-bearing one. The ingestor writes outbox rows in the *same
@@ -189,6 +219,25 @@ probe result whose notification was never queued, or a notification for a result
 that got rolled back. The alternative — the ingestor calling the dispatcher over
 HTTP — would make every result write depend on the dispatcher being up, and
 would need its own retry and deduplication logic to boot.
+
+The same outbox carries what the API's [event feed](../guide/api.md#event-feed)
+delivers. Besides the ingestor's rows, the gateway writes one for each
+workspace, project, service and variable created, changed or deleted, and for
+each run request that settles undelivered; the system alert service writes one
+for each new alert episode. Each row carries its organization and the
+transaction that wrote it. The gateway reads one organization's rows in
+transaction order, and only those written below the oldest transaction still
+open on the database server — so a row is never passed over however late its
+transaction commits, at the price that a transaction left open anywhere on
+the server holds the feed back until it ends.
+
+A read that waits does not poll the database. Every service that writes to the
+outbox publishes the organization's id on the Redis A channel `outbox:nudge`
+once the writing transaction has committed; the gateway subscribes to it and to
+the ingestor's `notify:nudge`, and wakes the reads waiting for that
+organization. A lost nudge only delays a read until its next look of its own.
+The feed sees the outbox through the aggregate-worker's trimming: events are
+kept 7 days — see [Retention](../admin/retention.md#outbox-trimming).
 
 This generalizes: **there is no synchronous HTTP between backend services.** A
 service that is down is a queue that is draining slowly, not an outage. The one

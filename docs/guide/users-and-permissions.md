@@ -305,3 +305,28 @@ fires for ninety seconds during a deploy and a capacity warning that has been
 open for three days look identical as a banner and are completely different
 problems. Recurring entries of the same type are the signal to add a probe
 agent, increase the available resources, or reduce probe frequency.
+
+Dismissing a warning hides it for you alone; it is not written to the audit
+log, because it changes your view of the log, not the organization. Through the
+API, the warning log is `GET /alerts`, under the same Settings **Write** the
+banners need — see [Alerts](api-reference.md#alerts).
+
+## The event feed
+
+The API's [event feed](api.md#event-feed) shows each member — through their
+keys — only the events about what they may see, decided on every read from
+their permissions at that moment:
+
+| Events | Who sees them |
+|---|---|
+| `result.recorded`, `service.status_changed`, `run.settled` | Read on the service — granted on it, or inherited from its project or workspace, or through organization **Workspaces** Read. |
+| `workspace.*`, `project.*`, `service.*` | Read on that workspace, project or service, the same way. |
+| `variable.*` at workspace, project or service scope | Read on the resource the variable belongs to. |
+| `variable.*` at organization scope | Organization **Settings** Read. |
+| `alert.raised` | Organization **Settings** Write — what the warning log needs. |
+
+A webhook's variables, groups and memberships are not in the feed. Because the
+check runs on every read, withdrawing a grant, demoting or removing a member,
+revoking a key or requiring two-factor authentication stops delivery from the
+next read, even one already waiting. A grant given shows what happens from then
+on; nothing earlier is replayed.

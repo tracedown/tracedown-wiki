@@ -156,9 +156,12 @@ expiry.
 **New API key** opens a short form:
 
 - **Name** — what the key is for, up to 128 characters (`ci-deploy`, say).
-- **Access** — **Read** (GET and HEAD requests only, within what you can see)
-  or **Read and write** (everything you can do in this organization). Read is
-  the default; choose write only for a key that has to change things.
+- **Access** — **Read** (GET and HEAD requests only, within what you can see),
+  **Read and write** (everything you can do in this organization), or
+  **Administration** *(0.4.63)*. Administration is reserved for administering
+  the organization through the API, which no endpoint offers yet; until one
+  does, such a key does what a read-and-write key does. Read is the default;
+  choose more only for a key that has to change things.
 - **Expires** — **Never**, **In 30 days**, **In 90 days**, **In a year**, or
   **Custom**: a whole number of days from 1 to 3650.
 - **Current password**, and a **Two-factor code** if you have two-factor
@@ -176,7 +179,8 @@ wrong two-factor code counts towards the same lockout as one at sign-in.
 !!! warning "The key is shown once"
     The new key appears once, right after it is created, together with the base
     URL to call and a link to the API description. Copy it and store it
-    somewhere safe: the dialog does not close until you confirm you have.
+    somewhere safe. While the key is shown, a click outside the dialog or
+    Escape does not close it; only **Done** or the close button does.
     Tracedown keeps only a digest of the key, so once the dialog closes nobody
     can see it, you included. A key you lost is a key to revoke and replace.
 

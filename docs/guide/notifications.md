@@ -92,13 +92,17 @@ hours will keep a webhook quiet overnight.
 ## Notification templates
 
 Templates live under **Infrastructure -> Notifications**. Each has a name and a
-body of text containing `${var}` placeholders that are resolved at dispatch.
+body of plain text containing `${var}` placeholders, filled in by name when a
+notification is sent. A name the dispatcher does not know renders empty, and
+`\${` writes a literal `${`. Nothing checks the text when it is saved, so try a
+new template on a service before you rely on it.
 
 Commonly used placeholders:
 
 | Placeholder | Resolves to |
 |---|---|
 | `${s.name}` | The service name. |
+| `${s.schedule}` | The service's schedule, as its cron expression. |
 | `${p.name}` | The project name. |
 | `${w.name}` | The workspace name. |
 | `${url}` | The URL of the call that triggered the notification. |
@@ -109,6 +113,7 @@ Commonly used placeholders:
 | `${conditions}` | A rendered summary of the failed conditions. |
 | `${downtime}` | How long the service was down — recovery notifications only. |
 | `${text}` | The notification text. |
+| `${trigger}` | What raised the notification: `expect`, `check`, `assert`, `timeout` or `error`, or a name an extension adds, such as `recovered`. |
 
 A script selects a template by name:
 
@@ -135,6 +140,17 @@ get("https://api.example.com/orders")
     The template list can be filtered by project, or to unbound templates only.
     That second filter is the fastest way to find templates you created and
     never wired up.
+
+!!! warning "Renaming a template breaks the scripts that use it"
+    A script names its template by `name`, so a rename leaves every script
+    that used the old name falling back to the default message — the same
+    silent fallback as an unbound template. Search your scripts for the old
+    name before renaming.
+
+Templates and their project bindings can also be managed through the API —
+listed, created, changed, deleted, bound and unbound; see
+[Notification templates](api-reference.md#notification-templates) in the API
+Reference. The same Notifications permission applies.
 
 ## Webhooks
 
@@ -229,6 +245,12 @@ flapping agent does not paper the screen. The full record lives under **Settings
 seen and last seen together tell you whether you are looking at one long episode
 or a repeating one, which is usually the difference between a saturated agent
 and an intermittent network path.
+
+Through the API, `GET /alerts` reads the same log and `POST /alerts/{id}/dismiss`
+dismisses an alert for the caller, and the [event feed](api.md#event-feed)
+announces each new episode as `alert.raised`. Nothing announces an alert's end:
+an alert ends when a user dismisses it — for that user — and a condition that
+returns later is a new episode. See [Alerts](api-reference.md#alerts).
 
 ## Silences, quiet hours and maintenance windows
 

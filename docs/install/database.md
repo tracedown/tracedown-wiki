@@ -39,12 +39,19 @@ one-shot migrator manages its own connection), which sets:
 
 - `isAutoCommit = false`
 - `transactionIsolation = TRANSACTION_REPEATABLE_READ`
+- `idle_in_transaction_session_timeout`, as a session startup parameter: 60
+  seconds unless `DB_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS` says otherwise (`0`
+  for none). A session left idle inside a transaction is ended rather than
+  left holding back vacuum and the API's event feed.
 
 Repeatable read is deliberate. The transactional outbox pattern depends on
 writes and their outbox rows committing atomically and being read consistently;
 at read committed, a consumer can observe a partial view within a transaction.
 The cost is that concurrent writers can hit serialisation failures under
-contention, which the services are written to expect.
+contention, which the services are written to expect. One transaction steps
+down on purpose: the result-ingestor persists a run at read committed, so that
+the results of one run on several agents, ingested side by side, count each
+other in turn under a row lock instead of failing on each other's snapshots.
 
 ## The migrator
 

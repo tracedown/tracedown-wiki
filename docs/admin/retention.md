@@ -35,10 +35,10 @@ production.
 |---|---|---|---|
 | `HourlyAggregationJob` | `WORKER_INTERVAL_HOURLY_AGGREGATION` | `900` | Rolls raw results into hourly buckets; pushes response-time percentiles to Redis B |
 | `DailyAggregationJob` | `WORKER_INTERVAL_DAILY_AGGREGATION` | `3600` | Daily rollups |
-| `RetentionJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Per organization: deletes raw results past `RESULT_RETENTION_DAYS` with the bodies still on them, then expires bodies past `BODY_RETENTION_DAYS` on the results it kept, over a time slice starting at a per-organization watermark |
+| `RetentionJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Deletes run requests past their purge date; then, per organization, deletes raw results past `RESULT_RETENTION_DAYS` with the bodies still on them, then expires bodies past `BODY_RETENTION_DAYS` on the results it kept, over a time slice starting at a per-organization watermark |
 | `AggregateRetentionJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Deletes hourly aggregate rows past `HOURLY_AGGREGATE_RETENTION_DAYS`; keeps daily rollups |
 | `PurgeJob` | `WORKER_INTERVAL_PURGE` | `300` | Hard-deletes soft-deleted rows whose `purge_after` has passed, and their stored bodies |
-| `OutboxPurgeJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Trims consumed outbox rows |
+| `OutboxPurgeJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Trims consumed outbox rows past 7 days, and moves the event feed's retention mark |
 | `SessionCleanupJob` | `WORKER_INTERVAL_SESSION_CLEANUP` | `900` | Removes expired and stale-revoked sessions |
 | `AgentHealthCleanupJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Trims agent health history past `AGENT_HEALTH_RETENTION_DAYS` |
 | `ExpiredInviteSweepJob` | `WORKER_INTERVAL_RETENTION` | `3600` | Soft-deletes expired never-accepted invites and their stub accounts |
@@ -206,6 +206,17 @@ and the intended ratio keeps aggregates roughly four times longer. Raising
 `RESULT_RETENTION_DAYS` to keep a year of raw detail is the expensive knob and
 usually the wrong one — the long-range charts already read aggregates.
 
+### Run requests
+
+Each run asked for with **Run now** or `POST /services/{id}/run` leaves a row
+in `run_requests` — the handle the API answers `GET …/runs/{runId}` from. The
+gateway stamps it with a purge date when it is made: the request time plus the
+organization's result retention window, or none while results are kept
+forever. `RetentionJob` deletes the rows past that date at the start of each
+tick, a bounded page at a time and on its own — a failure there is logged and
+does not cost the tick its result pass. The rows also go with their service or
+organization. A handle whose row is gone answers 404, like its result.
+
 ### Outbox trimming
 
 `OutboxPurgeJob` trims the transactional outbox, but only where it is provably
@@ -216,7 +227,22 @@ cursor is what stops a lagging consumer from silently losing events.
 
 Its retention window is a fixed 7 days in code and is not exposed as an
 environment variable — only its interval is configurable, via
-`WORKER_INTERVAL_RETENTION`.
+`WORKER_INTERVAL_RETENTION`. A row's age is counted from when it was written,
+not from the time it carries: a probe result's row carries its run's start, and
+a result ingested late would otherwise be old the moment it landed. The purge
+deletes in batches of 5,000 rows, each its own transaction, so a large backlog
+never holds one long transaction open.
+
+**The window is the API event feed's window.** The [event feed](../guide/api.md#event-feed)
+reads the outbox, so events are kept exactly as long as the outbox keeps its
+rows. Because the purge does not trim a clean prefix — an unpublished result's
+row outlives newer ones — each batch also moves a **mark**, the one row of
+`outbox_retention`: the last row deleted, in the order the feed reads. The mark
+only moves forward, and never past the oldest transaction still open. A feed
+cursor behind the mark may have missed rows, and is refused with 410
+`cursor_expired`, which names the oldest cursor that has missed nothing. A
+client that keeps reading keeps its cursor ahead of the mark however quiet its
+organization is; only a cursor left unread for longer than the window expires.
 
 ## Three-tier deletion
 

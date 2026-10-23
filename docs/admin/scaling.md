@@ -22,7 +22,7 @@ simply assumes it is alone.
 |---|---|---|
 | probe-scheduler | Multiple — safe | Quartz uses a RAM job store, so every replica schedules independently. Cross-replica safety comes from a Redis-backed lock taken per service before dispatch. |
 | aggregate-worker | **Exactly one** | No distributed lock. Jobs are plain coroutine loops. |
-| api-gateway | Multiple — safe | Stateless HTTP server. |
+| api-gateway | Multiple — safe | Stateless HTTP server. What the API keeps between requests — `Idempotency-Key` answers, open event-feed reads — lives in Redis A, so every replica must share it. |
 | result-ingestor | Multiple — safe | Consumes the result queue with an atomic blocking pop; each result is taken by exactly one replica. |
 | notification-dispatcher | Multiple — safe | Claims the outbox rows it reads in the same statement that reads them, with an expiring lease. Each row is delivered by exactly one replica. |
 | email-service | Multiple — safe | Consumes the email queue with an atomic blocking pop. |
@@ -240,6 +240,11 @@ shrink the pools first.
     is misleading — those values have no effect. Their pools are 5 regardless.
     Budget accordingly.
 
+The gateway's pool also serves the API's event feed: each look a waiting read
+makes is a short transaction, and the feed never takes more than a third of
+the pool at once, so a burst of feed reads cannot starve the rest of the API.
+Between looks a waiting read holds no connection.
+
 ### Sizing the scheduler's pool
 
 probe-scheduler is over half the budget on its own, and it is the one pool you
@@ -291,6 +296,26 @@ on the running container:
 ```bash
 docker update --cpus 2 --memory 3g --memory-swap 3g tracedown-agent-dev-agent
 ```
+
+## The event feed
+
+`GET /api/public/v1/events` is a long-poll: a read can stay open for up to 30
+seconds waiting for an event. Two things follow for a deployment that scales
+out.
+
+**Proxy timeouts.** Every proxy and load balancer between clients and the
+gateway must allow a response 30 seconds to start, plus a margin. The shipped
+`nginx.conf` and `apache.conf` rely on their servers' defaults of 60 seconds,
+which is enough; a load balancer with an idle timeout under 30 seconds cuts
+long-polls short, and clients see errors instead of empty pages.
+
+**Shared bounds.** Open reads are bounded at 2 per API key, 6 per user and 24
+per organization, counted in Redis A across every gateway replica, and each
+replica takes at most 512 at once, 24 of them for one organization. With Redis A
+unreachable, each replica falls back to bounding a key to 2 on its own. A
+waiting read holds neither a thread nor a database connection — it waits for a
+nudge on Redis A — so open reads cost memory and a socket each, not pool
+capacity.
 
 ## Splitting Redis
 

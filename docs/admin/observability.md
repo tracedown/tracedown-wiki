@@ -231,6 +231,14 @@ docker compose logs -f tracedown-scheduler
 docker compose logs -f tracedown-ingestor
 ```
 
+Two warnings from api-gateway are worth an alert of their own, because nothing
+else in the product surfaces them:
+
+| Log line begins | What it means |
+|---|---|
+| `A transaction has been open for …s` | A transaction on the database server is holding back the API's event feed, and vacuum with it. Logged at most once a minute while one older than 60 seconds is open. See [Troubleshooting](troubleshooting.md#the-event-feed-delivers-nothing-new). |
+| `The event feed's positions do not belong to this database's history` | The database went back in time — restored, or rewound. Every event-feed cursor is refused, and the feed starts again from the present. Expected once after a restore; unexpected otherwise. |
+
 !!! note "There is no bundled log aggregation"
     Tracedown ships no log shipper, no aggregation stack, and no log search UI.
     If you want centralised logs, point your own collector at the container
