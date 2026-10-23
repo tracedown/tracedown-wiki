@@ -44,7 +44,9 @@ dashboard applies to their session. So:
   leaks exposes that organization and no other;
 - a key carries an **access level** on top: **read** keys may only send `GET`
   and `HEAD` requests — and `POST /scripts/validate`, which changes nothing —
-  and **write** keys may do whatever their member may;
+  and **write** keys may do whatever their member may. **admin** keys
+  *(0.4.63)* are reserved for administering the organization through the API,
+  which no endpoint offers yet; until one does, they act as write keys;
 - a key can have an **expiry**, from 1 to 3650 days, or none;
 - a key **stops working** as soon as its member cannot act in the organization
   — their membership or account disabled, or the account gone — and while the

@@ -71,21 +71,22 @@ evidence the migration succeeded, given the gating above.
 
 Release 0.4.63 gives a run asked for through the API a handle (`runId`) to
 follow it by, and adds result filters, the raw body download, script
-validation, `Idempotency-Key` on every `POST`, and agent health on
-`GET /agents`. Release 0.4.64 adds script presets, notification templates, the
+validation, `Idempotency-Key` on every `POST`, agent health on
+`GET /agents`, and a third API key level, administration. Release 0.4.64 adds script presets, notification templates, the
 warning log and the event feed to the API. Everything is additive: no route or
 field a client already uses changes. See [The API](../guide/api.md).
 
-**The schema changes.** Four migrations, two per release, each run under
-`SET LOCAL lock_timeout = '5s'`: behind a long transaction they fail fast
-instead of queueing every writer behind them, and the migrator can simply be
-run again.
+**The schema changes.** Five migrations, three in 0.4.63 and two in 0.4.64,
+each run under `SET LOCAL lock_timeout = '5s'`: behind a long transaction they
+fail fast instead of queueing every writer behind them, and the migrator can
+simply be run again.
 
 - 0.4.63 creates `run_requests`, one row per run asked for, and adds two
   columns to `probe_results`: `trigger` (`NOT NULL DEFAULT 'schedule'`) and a
   nullable `run_id`. On PostgreSQL 11 and later both are catalogue changes:
   the big table is not rewritten, and every existing result reads as
-  `schedule`.
+  `schedule`. It also widens the check on `api_keys.access` to admit `3`,
+  the administration level.
 - 0.4.64 adds three columns to `outbox` — `xid`, the writing transaction;
   `organization_id`; and `inserted_at`, when the row was written — each added
   without a default and given one afterwards, so no row is rewritten and

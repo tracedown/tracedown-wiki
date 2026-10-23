@@ -329,7 +329,7 @@ objects in full are in the OpenAPI document.
 
 ### ApiKeyInfo
 
-`id`, `name`, `prefix`, `access` (`read` or `write`), `expiresAt` (null when it
+`id`, `name`, `prefix`, `access` (`read`, `write`, or *(0.4.63)* `admin`), `expiresAt` (null when it
 never expires), `organization` {`id`, `name`}, `user` {`id`, `email`}.
 
 ### Workspace
