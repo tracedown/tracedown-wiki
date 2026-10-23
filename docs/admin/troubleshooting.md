@@ -346,7 +346,7 @@ so at once instead: `skipped`, with `run_not_delivered`.
 **Fix.** Bring every scheduler to the release the gateway runs, and check that
 they share the gateway's Redis A. A run that did happen is still in the
 service's results, under another id. See
-[Upgrading](upgrading.md#run-handles-idempotency-and-the-event-feed-04590460).
+[Upgrading](upgrading.md#run-handles-idempotency-and-the-event-feed-04630464).
 
 ### Emails are not sent
 
