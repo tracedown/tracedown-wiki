@@ -337,7 +337,7 @@ the cursor in the answer's `details.oldest`. See
 ### A run asked for stays `pending`, then reads `expired`
 
 **Cause.** No scheduler that knows run handles took it. During an upgrade, a
-scheduler older than 0.4.59 runs it without its id, so its result is not filed
+scheduler older than 0.4.63 runs it without its id, so its result is not filed
 under the handle; a scheduler that could not reach Redis A to claim the run
 does not run it at all. The handle reads `expired` after the gateway's bound,
 10 minutes by default. If no scheduler was subscribed at all, the handle says

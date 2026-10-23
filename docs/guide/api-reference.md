@@ -4,9 +4,9 @@ description: "Every endpoint of the Tracedown API v1 under /api/public/v1: metho
 # API Reference
 
 !!! note "Tracedown 0.4.50 and later"
-    This page describes the API as served from release 0.4.60 on. Release 0.4.49
+    This page describes the API as served from release 0.4.64 on. Release 0.4.49
     serves only `GET /key` under `/api/public/v1`. Routes and fields added in
-    0.4.59 and 0.4.60 are marked *(0.4.59)* and *(0.4.60)*; an older gateway
+    0.4.63 and 0.4.64 are marked *(0.4.63)* and *(0.4.64)*; an older gateway
     answers 404 for those routes and leaves those fields out.
 
 Every endpoint of the [key-authenticated API](api.md), version 1 — 91 in all,
@@ -107,15 +107,15 @@ the dashboard's editor, or with a Lace validator (see
 | Method | Path | What it does | Answers |
 |---|---|---|---|
 | `GET` | `/services` | Lists the services of a project that the caller may see.<br>Query: `projectId` (**required**).<br>Errors: 400 `field_required` when `projectId` is missing. | `200` Page of [Service](#service) |
-| `POST` | `/services` | Creates a service in a project, switched off. A `script` in the body is saved as a first script save, which switches the service on unless `isActive` is `false`. `isActive: false` keeps it off. `presetId` instead of `script` *(0.4.60)* starts it from that [preset](#presets)'s script — copied, so later changes to the preset do not reach the service; the preset must be one the caller may read, and a workspace's preset only serves a service in that workspace. When the script or the enable is refused, the call leaves nothing behind — no service, no audit entries.<br>Body: `projectId` (required), `name` (required, ≤ 128), `label` (≤ 32), `schedule` (cron, ≤ 16, default `*/5 * * * *`), `saveResponseBodies` (default `true`), `script` (≤ 65536), `presetId`, `isActive`.<br>Errors: 400 `field_invalid` naming `presetId` (sent with a `script`); 404 `not_found` with `details.field` = `presetId` (a preset the caller may not use); 409 `already_exists`; script errors as for `/script`; enabling errors as for `/toggle`. | `200` [Service](#service) |
+| `POST` | `/services` | Creates a service in a project, switched off. A `script` in the body is saved as a first script save, which switches the service on unless `isActive` is `false`. `isActive: false` keeps it off. `presetId` instead of `script` *(0.4.64)* starts it from that [preset](#presets)'s script — copied, so later changes to the preset do not reach the service; the preset must be one the caller may read, and a workspace's preset only serves a service in that workspace. When the script or the enable is refused, the call leaves nothing behind — no service, no audit entries.<br>Body: `projectId` (required), `name` (required, ≤ 128), `label` (≤ 32), `schedule` (cron, ≤ 16, default `*/5 * * * *`), `saveResponseBodies` (default `true`), `script` (≤ 65536), `presetId`, `isActive`.<br>Errors: 400 `field_invalid` naming `presetId` (sent with a `script`); 404 `not_found` with `details.field` = `presetId` (a preset the caller may not use); 409 `already_exists`; script errors as for `/script`; enabling errors as for `/toggle`. | `200` [Service](#service) |
 | `GET` | `/services/{id}` | Returns one service. | `200` [Service](#service) |
 | `PATCH` | `/services/{id}` | Updates a service's configuration; fields left out are unchanged. A `script` here needs `version`.<br>Body, all optional: `name` (≤ 128), `label` (≤ 32), `schedule` (≤ 16), `probeMode` (`consecutive`, `simultaneous`, `random`), `queuePolicy` (`skip`, `enqueue_once`), `serviceWindow` (≤ 256), `saveResponseBodies`, `script` (≤ 65536), `version`.<br>Errors: 400 `field_required` (a `script` without `version`), `field_invalid` (a malformed `serviceWindow`), `unverified_domain_interval`; 409 `version_conflict`; script errors as for `/script`. | `200` [Service](#service) |
 | `DELETE` | `/services/{id}` | Deletes a service. | `200` `{"ok": true}` |
 | `PATCH` | `/services/{id}/script` | Replaces the Lace script. Validated before it is saved; the service's `version` goes up by one. The first save of a service that has never been saved (still at `version` 1) switches it on; if that enable is refused, the script is still saved and the service stays off.<br>Body: `script` (required, ≤ 65536), `version` (required — the version being replaced).<br>Errors: 400 `field_invalid` (the script does not validate: `details.field` = `script`, with `details.errors` and `details.reason`), `blocked_probe_target`, `unverified_domain_call_limit`, `unverified_domain_includes`, `unverified_domain_interval`; 409 `version_conflict`. | `200` [Service](#service) |
 | `GET` | `/services/{id}/snapshot` | The service and its most recent runs, in one read. | `200` [ServiceSnapshot](#servicesnapshot) |
 | `PATCH` | `/services/{id}/toggle` | Switches the service on or off. Switching on needs a valid script.<br>Body: `isActive` (required).<br>Errors: 400 `field_required` (no script), `field_invalid` (the script does not validate, with `details.errors` and `details.reason`). | `200` [Service](#service) |
-| `POST` | `/services/{id}/run` | Asks for one run now, outside the schedule. Answers once the request is recorded, with the run's handle: its result is filed under `runId` *(0.4.59)*. Follow it with `/runs/{runId}` — see [Running a service now](api.md#running-a-service-now). Under an `Idempotency-Key`, a repeat answers the same `runId` and runs nothing.<br>Errors: 409 `service_inactive`, `script_missing`. | `202` [RunRequested](#runrequested) |
-| `GET` | `/services/{id}/runs/{runId}` | Where a run asked for stands *(0.4.59)*: `pending`, `done`, `skipped` (with `reason`) or `expired`. Needs read on the service's results.<br>Errors: 404 for an id that is not a run of this service. | `200` [RunStatus](#runstatus) |
+| `POST` | `/services/{id}/run` | Asks for one run now, outside the schedule. Answers once the request is recorded, with the run's handle: its result is filed under `runId` *(0.4.63)*. Follow it with `/runs/{runId}` — see [Running a service now](api.md#running-a-service-now). Under an `Idempotency-Key`, a repeat answers the same `runId` and runs nothing.<br>Errors: 409 `service_inactive`, `script_missing`. | `202` [RunRequested](#runrequested) |
+| `GET` | `/services/{id}/runs/{runId}` | Where a run asked for stands *(0.4.63)*: `pending`, `done`, `skipped` (with `reason`) or `expired`. Needs read on the service's results.<br>Errors: 404 for an id that is not a run of this service. | `200` [RunStatus](#runstatus) |
 | `GET` | `/services/{id}/agents` | The agent slugs the service may run on. An empty list means any agent. | `200` list of slugs |
 | `PUT` | `/services/{id}/agents` | Replaces the agents the service may run on. An empty list means any agent.<br>Body: `slugs` (required, list).<br>Errors: 400 `field_invalid` with `details.unknown` listing slugs that name no agent the caller can use — unknown, inactive or not visible to them. | `200` list of slugs |
 
@@ -123,7 +123,7 @@ the dashboard's editor, or with a Lace validator (see
 
 | Method | Path | What it does | Answers |
 |---|---|---|---|
-| `GET` | `/agents` | Lists the active probe agents the caller can name in `PUT /services/{id}/agents`, by slug and label, ordered by slug, each with its health as the dashboard shows it *(0.4.59)* — nothing about where they are. | `200` list of [Agent](#agent) |
+| `GET` | `/agents` | Lists the active probe agents the caller can name in `PUT /services/{id}/agents`, by slug and label, ordered by slug, each with its health as the dashboard shows it *(0.4.63)* — nothing about where they are. | `200` list of [Agent](#agent) |
 
 ## Variables
 
@@ -151,10 +151,10 @@ masked; see [Variables](api.md#variables).
 
 | Method | Path | What it does | Answers |
 |---|---|---|---|
-| `GET` | `/services/{id}/results` | Lists the service's runs, newest first. See [Reading results](api.md#reading-results).<br>Query: `since` (ISO-8601: runs started at or after it); *(0.4.59)* `until` (ISO-8601: runs started at or before it; not before `since`), `status` (`success`, `failure`, `timeout`, `error`, `skipped`; repeated or comma-separated), `trigger` (`schedule` or `manual`), `order` (`desc` default, or `asc`). Times are compared to the second, both bounds inclusive.<br>Errors: 400 `field_invalid` naming the parameter. | `200` Page of [ResultSummary](#resultsummary) |
+| `GET` | `/services/{id}/results` | Lists the service's runs, newest first. See [Reading results](api.md#reading-results).<br>Query: `since` (ISO-8601: runs started at or after it); *(0.4.63)* `until` (ISO-8601: runs started at or before it; not before `since`), `status` (`success`, `failure`, `timeout`, `error`, `skipped`; repeated or comma-separated), `trigger` (`schedule` or `manual`), `order` (`desc` default, or `asc`). Times are compared to the second, both bounds inclusive.<br>Errors: 400 `field_invalid` naming the parameter. | `200` Page of [ResultSummary](#resultsummary) |
 | `GET` | `/services/{id}/results/{resultId}` | Returns one run with all of its steps. | `200` [Result](#result) |
 | `GET` | `/services/{id}/results/{resultId}/steps/{stepId}/body` | The response body the step stored, inline, up to 4 MiB. A client that takes nothing of the answer for 20 seconds, or has not taken all of it after 10 minutes, is cut off. See [Step bodies](api.md#step-bodies) and the answers below. | `200` [StepBody](#stepbody); `204` |
-| `GET` | `/services/{id}/results/{resultId}/steps/{stepId}/body/raw` | The same body as it was stored *(0.4.59)*: the bytes, under the stored content type (`application/octet-stream` when the gateway does not repeat it), as an attachment, up to 32 MiB. `HEAD` answers the headers without reading the body. A client that takes nothing for 20 seconds, or has not taken the whole body after 10 minutes, is cut off. | `200` bytes; `204` |
+| `GET` | `/services/{id}/results/{resultId}/steps/{stepId}/body/raw` | The same body as it was stored *(0.4.63)*: the bytes, under the stored content type (`application/octet-stream` when the gateway does not repeat it), as an attachment, up to 32 MiB. `HEAD` answers the headers without reading the body. A client that takes nothing for 20 seconds, or has not taken the whole body after 10 minutes, is cut off. | `200` bytes; `204` |
 
 ### Step body answers
 
@@ -247,7 +247,7 @@ read or write is 404. Changing or removing a binding needs Webhooks Write.
 
 ## Scripts
 
-*(0.4.59)*
+*(0.4.63)*
 
 | Method | Path | What it does | Answers |
 |---|---|---|---|
@@ -259,7 +259,7 @@ Script presets: Lace scripts a service can start from — what the dashboard's
 editor offers as script templates. A preset is organization-wide, readable by
 every member, or belongs to one workspace, readable by those who may see it.
 To anyone else a workspace's preset is 404, for a read, a change and a delete
-alike. *(0.4.60)*
+alike. *(0.4.64)*
 
 | Method | Path | What it does | Answers |
 |---|---|---|---|
@@ -274,7 +274,7 @@ alike. *(0.4.60)*
 The text notifications are written with, and the projects it is bound to.
 Reading needs organization Notifications Read; every change needs Notifications
 Write. See [Notification templates](notifications.md#notification-templates).
-*(0.4.60)*
+*(0.4.64)*
 
 The text is plain, with `${name}` placeholders filled in by name when a
 notification is sent; an unknown name renders empty, and `\${` writes a
@@ -297,7 +297,7 @@ renaming a template breaks the scripts that use the old name.
 
 The warning log: what the platform has noticed about its agents and runs. Both
 need organization Settings Write, as the dashboard's banners do. See
-[System alerts](notifications.md#system-alerts). *(0.4.60)*
+[System alerts](notifications.md#system-alerts). *(0.4.64)*
 
 | Method | Path | What it does | Answers |
 |---|---|---|---|
@@ -309,7 +309,7 @@ condition that returns after a quiet spell is a new episode.
 
 ## Events
 
-*(0.4.60)* See [Event feed](api.md#event-feed) for how to read it, the event
+*(0.4.64)* See [Event feed](api.md#event-feed) for how to read it, the event
 types and what each carries.
 
 | Method | Path | What it does | Answers |
@@ -362,7 +362,7 @@ never expires), `organization` {`id`, `name`}, `user` {`id`, `email`}.
 
 ### Agent
 
-`slug`, `label`, and *(0.4.59)* `status` — `healthy`, `degraded` (answering,
+`slug`, `label`, and *(0.4.63)* `status` — `healthy`, `degraded` (answering,
 but slower than its own usual), `down` (failing its health checks) or
 `unknown` — and `lastCheckAt`, when its health was last checked: null, with
 `status` `unknown`, until it has been.
@@ -370,11 +370,11 @@ but slower than its own usual), `down` (failing its health checks) or
 ### RunRequested
 
 `ok` (`true`), `requestedAt` (when the run was asked for, to the second), and
-*(0.4.59)* `runId`, the handle the run's result is filed under.
+*(0.4.63)* `runId`, the handle the run's result is filed under.
 
 ### RunStatus
 
-*(0.4.59)* `runId`, `state` (`pending`, `done`, `skipped` or `expired`),
+*(0.4.63)* `runId`, `state` (`pending`, `done`, `skipped` or `expired`),
 `requestedAt`, `result` (the [ResultSummary](#resultsummary) filed under the
 run's id, once there is one), `reason` (why a skipped run was not made; null
 otherwise), `status` (the worst status among `results` — `failure`, then
@@ -384,7 +384,7 @@ otherwise), `status` (the worst status among `results` — `failure`, then
 
 ### ScriptValidation
 
-*(0.4.59)* `valid` (true when nothing the caller can judge would refuse the
+*(0.4.63)* `valid` (true when nothing the caller can judge would refuse the
 script), `errors` (each {`code`, `callIndex`, `field`, `detail`}: the Lace
 validator's first, then `blocked_probe_target` per refused call, then
 `unverified_domain_includes`, `unverified_domain_call_limit` and
@@ -419,13 +419,13 @@ variables such as `$s.name`, each {`key`, `value`, `description`}).
 ### ResultSummary
 
 `id`, `status`, `runDurationMs`, `totalResponseMs`, `startedAt`, `agentSlug`,
-and *(0.4.59)* `trigger` — `schedule`, or `manual` for a run somebody asked
+and *(0.4.63)* `trigger` — `schedule`, or `manual` for a run somebody asked
 for.
 
 ### Result
 
 `id`, `serviceId`, `status`, `runDurationMs`, `startedAt`, `probeAgentId`,
-`agentSlug`, *(0.4.59)* `trigger`, `rawResult`, and `steps`. Each step has `id`, `stepNum`,
+`agentSlug`, *(0.4.63)* `trigger`, `rawResult`, and `steps`. Each step has `id`, `stepNum`,
 `requestUrl`, `statusCode`, `responseTimeMs`, the phase timings (`dnsMs`,
 `connectMs`, `tlsMs`, `ttfbMs`, `transferMs`), `responseSizeBytes`, `error`,
 `assertionResults`, `headers`, `hasBody` and `bodyNotStoredReason`.
@@ -504,17 +504,17 @@ endpoint, what it checked, `failures`, `evaluations`, `failureRatePct` and
 
 ### RulePreset
 
-*(0.4.60)* `id`, `name`, `script`, `scope` (`org` or `workspace`) and
+*(0.4.64)* `id`, `name`, `script`, `scope` (`org` or `workspace`) and
 `workspaceId` (null for an organization-wide preset).
 
 ### NotificationTemplate
 
-*(0.4.60)* `id`, `name`, `text`, `projectIds` (the projects it is bound to),
+*(0.4.64)* `id`, `name`, `text`, `projectIds` (the projects it is bound to),
 `createdAt`.
 
 ### Alert
 
-*(0.4.60)* `id`, `type` (`agent_down`, `dispatch_capacity`, … — see
+*(0.4.64)* `id`, `type` (`agent_down`, `dispatch_capacity`, … — see
 [System alerts](notifications.md#system-alerts)), `subject` (what it concerns,
 such as an agent's slug; empty when the type says it all), `severity`
 (`warning` or `error`), `data`, `firstSeenAt`, `lastSeenAt`, and `dismissedAt`
@@ -523,7 +523,7 @@ calls it `PublicSystemAlert`.
 
 ### EventPage
 
-*(0.4.60)* `items` (a list of events), `next` (the cursor to read on from — it
+*(0.4.64)* `items` (a list of events), `next` (the cursor to read on from — it
 moves even when `items` is empty) and `more` (true when more may be there
 already). Each event has `id` (the same every time it is read), `type`,
 `occurredAt`, `resource` {`type`, `id`} and `data`, whose fields depend on the

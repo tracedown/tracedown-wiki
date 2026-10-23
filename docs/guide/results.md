@@ -78,7 +78,7 @@ response time, a relative timestamp, and the slug of the agent that ran it.
 Every result also records what started it: its schedule, or somebody asking for
 it with **Run now** or through the API. The [API](api.md#reading-results)
 returns this as `trigger` — `schedule` or `manual` — on each result, and can
-list one kind or the other. Runs recorded before release 0.4.59 all read as
+list one kind or the other. Runs recorded before release 0.4.63 all read as
 `schedule`.
 
 The agent slug is worth attention. If one agent's runs fail while another's

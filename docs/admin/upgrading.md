@@ -67,12 +67,12 @@ docker compose logs tracedown-migrator
 It logs the number of migrations applied. Services starting at all is itself
 evidence the migration succeeded, given the gating above.
 
-## Run handles, idempotency and the event feed (0.4.59–0.4.60)
+## Run handles, idempotency and the event feed (0.4.63–0.4.64)
 
-Release 0.4.59 gives a run asked for through the API a handle (`runId`) to
+Release 0.4.63 gives a run asked for through the API a handle (`runId`) to
 follow it by, and adds result filters, the raw body download, script
 validation, `Idempotency-Key` on every `POST`, and agent health on
-`GET /agents`. Release 0.4.60 adds script presets, notification templates, the
+`GET /agents`. Release 0.4.64 adds script presets, notification templates, the
 warning log and the event feed to the API. Everything is additive: no route or
 field a client already uses changes. See [The API](../guide/api.md).
 
@@ -81,12 +81,12 @@ field a client already uses changes. See [The API](../guide/api.md).
 instead of queueing every writer behind them, and the migrator can simply be
 run again.
 
-- 0.4.59 creates `run_requests`, one row per run asked for, and adds two
+- 0.4.63 creates `run_requests`, one row per run asked for, and adds two
   columns to `probe_results`: `trigger` (`NOT NULL DEFAULT 'schedule'`) and a
   nullable `run_id`. On PostgreSQL 11 and later both are catalogue changes:
   the big table is not rewritten, and every existing result reads as
   `schedule`.
-- 0.4.60 adds three columns to `outbox` — `xid`, the writing transaction;
+- 0.4.64 adds three columns to `outbox` — `xid`, the writing transaction;
   `organization_id`; and `inserted_at`, when the row was written — each added
   without a default and given one afterwards, so no row is rewritten and
   existing rows keep nulls. It creates the one-row `outbox_retention`, and a
@@ -117,9 +117,9 @@ fine. The order matters when you roll services one at a time, or run replicas:
 - **The ingestor before the scheduler.** A new scheduler records skipped rows
   with new `run_*` reasons; an older ingestor takes them for a capacity
   problem and raises a banner.
-- **The worker before the gateway.** The 0.4.60 purge moves the event feed's
+- **The worker before the gateway.** The 0.4.64 purge moves the event feed's
   retention mark as it deletes; an older one deletes without moving it, and a
-  feed cursor could pass rows it deleted without being told. The 0.4.59 worker
+  feed cursor could pass rows it deleted without being told. The 0.4.63 worker
   is also what purges old run requests.
 - **Every service that writes to the outbox before the gateway.** Outbox rows
   written by a service still on an older release carry no organization, and
@@ -140,7 +140,7 @@ While versions are mixed, runs keep running, without their handles:
   result filed under the id, but `trigger=manual` does not, and the run is not
   settled in `run_requests`.
 
-Results recorded before 0.4.59, or during the mixed window, read as
+Results recorded before 0.4.63, or during the mixed window, read as
 `trigger` `schedule`.
 
 **The new environment variables are optional.** The gateway now reads
@@ -160,7 +160,7 @@ the deploy stack, and the servers' own defaults, allow 60; a proxy or load
 balancer with a shorter read or idle timeout in front of the gateway must be
 raised to at least 30 seconds, plus a margin. See [Scaling](scaling.md#the-event-feed).
 
-**Rolling back.** The undo scripts for 0.4.59 say to roll the gateway,
+**Rolling back.** The undo scripts for 0.4.63 say to roll the gateway,
 scheduler, ingestor and worker back to 0.4.58 first. The undo of the outbox
 columns needs the worker and gateway rolled back first, and voids every feed
 cursor ever handed out; clients start again from a fresh cursor. See

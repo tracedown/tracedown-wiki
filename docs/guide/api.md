@@ -4,12 +4,12 @@ description: "The Tracedown API for scripts, pipelines and agents: API keys, aut
 # The API
 
 !!! note "Tracedown 0.4.50 and later"
-    This page describes the API as served from release 0.4.60 on. Release 0.4.49
+    This page describes the API as served from release 0.4.64 on. Release 0.4.49
     serves only `GET /key` under `/api/public/v1`; 0.4.50 adds the resource
-    endpoints. **0.4.59** adds the run handle (`runId` and
+    endpoints. **0.4.63** adds the run handle (`runId` and
     `GET /services/{id}/runs/{runId}`), the result filters, the raw body
     download, script validation, `Idempotency-Key` and agent health.
-    **0.4.60** adds script presets, notification templates, the warning log
+    **0.4.64** adds script presets, notification templates, the warning log
     (`/alerts`) and the event feed (`/events`). Against an older gateway, those
     routes answer 404 and the new fields are absent.
 
@@ -388,7 +388,7 @@ parameters narrow and order the list:
 | `trigger` | `schedule` — runs the cron started — or `manual`, runs somebody asked for, from the dashboard or the API. |
 | `order` | `desc` (the default, newest first) or `asc` (oldest first). Ties go by id, in the same direction. |
 
-Each result carries `trigger` too. Runs from before 0.4.59, and runs made while
+Each result carries `trigger` too. Runs from before 0.4.63, and runs made while
 gateways and schedulers of both versions ran side by side during the upgrade,
 read as `schedule` whoever asked for them.
 
@@ -856,7 +856,7 @@ From an empty organization to a probe result and back, with nothing but a
 **write** key. Run the steps as one script (`bash tracedown-example.sh`): it
 uses [`jq`](https://jqlang.org) to pick fields out of responses, and curl 7.76
 or later for `--fail-with-body`, so a refused request stops the script and
-prints the `{"error": …}` body. It needs a gateway on 0.4.59 or later.
+prints the `{"error": …}` body. It needs a gateway on 0.4.63 or later.
 
 Three things have to be true first:
 
