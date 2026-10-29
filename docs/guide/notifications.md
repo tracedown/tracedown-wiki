@@ -108,9 +108,10 @@ Commonly used placeholders:
 | `${url}` | The URL of the call that triggered the notification. |
 | `${status}` | The probe run's **outcome** (`success`, `failed`, …) — not the HTTP status code. For a status assertion, the HTTP codes are in `${expected}` and `${actual}`. |
 | `${ms}` | The call's response time in milliseconds. |
-| `${expected}` | The value the assertion expected. |
-| `${actual}` | The value it actually saw. |
-| `${conditions}` | A rendered summary of the failed conditions. |
+| `${expected}` | The value the assertion expected. For an `.assert()` condition, which has no expected value, the right operand it resolved. |
+| `${actual}` | The value it actually saw. For an `.assert()` condition, the left operand it resolved. |
+| `${expression}` | The failed `.assert()` condition as written, e.g. `this.body.page eq 1`. Empty for other notifications. |
+| `${conditions}` | A rendered summary of the failed conditions — for `.assert()`, each one with its operands, e.g. `[this.body.page eq 1 (left: null, right: 1)]`. |
 | `${downtime}` | How long the service was down — recovery notifications only. |
 | `${text}` | The notification text. |
 | `${trigger}` | What raised the notification: `expect`, `check`, `assert`, `timeout` or `error`, or a name an extension adds, such as `recovered`. |
